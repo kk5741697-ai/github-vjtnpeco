@@ -1,3 +1,65 @@
+# Pixora – Bolt
+
+## UI & Layout
+
+* Two-pane layout:
+
+  * **Left pane (Tool Canvas)**:
+
+    * Main working area for all tools
+    * Supports drag & drop uploads
+    * Crop by drag & select (for images)
+    * Real-time previews
+    * Bulk file handling
+    * Drag to reorder (for PDF merge)
+    * Text input area for text tools
+  * **Right sidebar**: fixed, shows related tools, ads, share buttons
+* **No footer** in tool pages
+* Responsive and mobile-friendly
+
+## Functionality
+
+* All tools run fully **client-side** (WASM/JS workers)
+* Support **bulk processing** and **ZIP upload/download**
+* Ensure smooth performance for large files
+
+## Tools (Phase 1)
+
+* PDF Tools: merge, split, compress, protect, unlock
+* Image Tools: resize, compress, convert, crop (drag & select)
+* Text Tools: case converter, word counter
+* File Tools: ZIP, extract, convert
+
+## Admin Panel
+
+* Manage tools visibility and categories
+* Manage ads placements
+* Basic usage analytics
+
+## Monetization
+
+* Ads integration
+* Stripe payments for premium features
+
+## SEO & PWA
+
+* SEO-optimized pages with canonical tags
+* Add to Home Screen (PWA)
+* Offline caching for recent tools
+
+## Performance & Testing
+
+* Lighthouse performance score >90
+* Test in Chrome, Edge, Firefox, Safari
+
+## Coding Rules
+
+* Use clean React/Next.js + Tailwind
+* Avoid TSX parsing corruption issues
+* Sidebar must stay fixed
+* Do not add any footer in tool pages
+
+
 You are tasked with building Pixora – a comprehensive multi-domain web tools ecosystem using Next.js 14 App Router. This is an enterprise-grade platform targeting 10M+ monthly visitors with advanced monetization features.
 
 ## Project Overview
