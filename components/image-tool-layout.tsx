@@ -30,7 +30,8 @@ import {
   Crop,
   Palette,
   Plus,
-  Cloud
+  Cloud,
+  X
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -100,8 +101,7 @@ export function ImageToolLayout({
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [processingOptions, setProcessingOptions] = useState<Record<string, any>>({})
-  const [cropPosition, setCropPosition] = useState({ x: 610, y: 392 })
-  const [cropSize, setCropSize] = useState({ width: 4878, height: 3135 })
+  const [cropArea, setCropArea] = useState({ x: 10, y: 10, width: 80, height: 80 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const additionalFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -127,7 +127,6 @@ export function ImageToolLayout({
     const newFiles: ProcessedImageFile[] = []
 
     for (const file of selectedFiles) {
-      // Validate file type
       if (!supportedFormats.some(format => file.type.includes(format.replace("image/", "")))) {
         toast({
           title: "Invalid file type",
@@ -137,7 +136,6 @@ export function ImageToolLayout({
         continue
       }
 
-      // Validate file size
       if (file.size > maxFileSize * 1024 * 1024) {
         toast({
           title: "File too large",
@@ -147,7 +145,6 @@ export function ImageToolLayout({
         continue
       }
 
-      // Generate preview and metadata
       const preview = await new Promise<string>((resolve) => {
         const reader = new FileReader()
         reader.onload = (e) => resolve(e.target?.result as string)
@@ -177,7 +174,7 @@ export function ImageToolLayout({
         status: "pending",
         progress: 0,
         metadata,
-        cropArea: toolType === "crop" ? { x: 10, y: 10, width: 80, height: 80 } : undefined
+        cropArea: toolType === "crop" ? cropArea : undefined
       }
 
       newFiles.push(processedFile)
@@ -187,7 +184,7 @@ export function ImageToolLayout({
     if (newFiles.length > 0 && !selectedFileId) {
       setSelectedFileId(newFiles[0].id)
     }
-  }, [files, maxFiles, maxFileSize, supportedFormats, selectedFileId, toolType])
+  }, [files, maxFiles, maxFileSize, supportedFormats, selectedFileId, toolType, cropArea])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -259,7 +256,6 @@ export function ImageToolLayout({
         file.progress = 0
         setFiles(prev => prev.map(f => f.id === file.id ? { ...file } : f))
 
-        // Simulate progress
         for (let i = 0; i <= 100; i += 20) {
           file.progress = i
           setFiles(prev => prev.map(f => f.id === file.id ? { ...file } : f))
@@ -345,18 +341,21 @@ export function ImageToolLayout({
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{title}</h1>
-          <p className="text-gray-600 mb-4">{description}</p>
+      {/* Ad Banner */}
+      <div className="bg-white border-b">
+        <div className="container mx-auto px-4 py-2">
+          <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center">
+            <span className="text-sm text-blue-600">Advertisement</span>
+          </div>
         </div>
-
+      </div>
+      
+      <div className="container mx-auto px-4 py-8">
         {/* File Upload Area */}
         {files.length === 0 && (
-          <div className="max-w-2xl mx-auto mb-8">
+          <div className="max-w-4xl mx-auto mb-8">
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-lg p-16 text-center transition-all cursor-pointer ${
                 dragActive 
                   ? "border-blue-500 bg-blue-50" 
                   : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
@@ -366,13 +365,13 @@ export function ImageToolLayout({
               onDragLeave={handleDragLeave}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Cloud className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Select images</h3>
-              <p className="text-gray-600 mb-6">or drop images here</p>
+              <Cloud className="h-16 w-16 text-blue-500 mx-auto mb-6" />
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Select images</h3>
+              <p className="text-gray-600 mb-8">or drop images here</p>
               
               <Button 
                 size="lg" 
-                className="bg-blue-500 hover:bg-blue-600 text-white px-8 mb-4"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 text-lg mb-6"
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Select images
@@ -417,7 +416,7 @@ export function ImageToolLayout({
                 </Tabs>
               </div>
 
-              <p className="text-xs text-gray-500 mt-6">
+              <p className="text-sm text-gray-500 mt-6">
                 Maximum {maxFiles} files • {supportedFormats.map(f => f.replace("image/", "").toUpperCase()).join(", ")} • Up to {maxFileSize}MB per file
               </p>
             </div>
@@ -433,71 +432,74 @@ export function ImageToolLayout({
           </div>
         )}
 
-        {/* Main Interface - Two Column Layout */}
+        {/* Main Interface - iLoveIMG Style Layout */}
         {files.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="flex gap-6">
             {/* Left Column - Image Editor */}
-            <div className="lg:col-span-2">
+            <div className="flex-1">
               {/* Image Preview and Crop Interface */}
               {toolType === "crop" && selectedFile && (
-                <Card className="mb-6">
-                  <CardContent className="p-0">
-                    <div className="relative bg-gray-100 overflow-hidden" style={{ minHeight: "400px" }}>
-                      <img
-                        src={selectedFile.preview}
-                        alt="Crop preview"
-                        className="w-full h-full object-contain"
-                        style={{ maxHeight: "500px" }}
-                      />
-                      
-                      {/* Crop Overlay */}
-                      <div
-                        className="absolute border-2 border-blue-500 bg-blue-500/20 cursor-move"
-                        style={{
-                          left: `${selectedFile.cropArea?.x || 10}%`,
-                          top: `${selectedFile.cropArea?.y || 10}%`,
-                          width: `${selectedFile.cropArea?.width || 80}%`,
-                          height: `${selectedFile.cropArea?.height || 80}%`
-                        }}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <Crop className="h-6 w-6 text-white drop-shadow-lg" />
-                        </div>
-                        
-                        {/* Resize handles */}
-                        <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-nw-resize"></div>
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-ne-resize"></div>
-                        <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-sw-resize"></div>
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-se-resize"></div>
+                <div className="bg-white rounded-lg border border-gray-200 mb-6 overflow-hidden">
+                  <div className="relative bg-gray-100" style={{ minHeight: "400px" }}>
+                    <img
+                      src={selectedFile.preview}
+                      alt="Crop preview"
+                      className="w-full h-full object-contain"
+                      style={{ maxHeight: "500px" }}
+                    />
+                    
+                    {/* Crop Overlay - Visual Crop Area */}
+                    <div
+                      className="absolute border-2 border-blue-500 bg-blue-500/20 cursor-move"
+                      style={{
+                        left: `${cropArea.x}%`,
+                        top: `${cropArea.y}%`,
+                        width: `${cropArea.width}%`,
+                        height: `${cropArea.height}%`
+                      }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <Crop className="h-6 w-6 text-white drop-shadow-lg" />
                       </div>
+                      
+                      {/* Resize handles */}
+                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-nw-resize"></div>
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-ne-resize"></div>
+                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-sw-resize"></div>
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-se-resize"></div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
 
               {/* Files List */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Images ({files.length})</CardTitle>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => additionalFileInputRef.current?.click()}
-                        disabled={files.length >= maxFiles}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add More
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setFiles([])}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Clear All
-                      </Button>
-                    </div>
+              <div className="bg-white rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Images ({files.length})</h3>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => additionalFileInputRef.current?.click()}
+                      disabled={files.length >= maxFiles}
+                      className="text-blue-600 border-blue-600"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add More
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFiles([])}
+                      className="text-red-600 border-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear All
+                    </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                
+                <div className="p-4">
                   <DragDropContext onDragEnd={onDragEnd}>
                     <Droppable droppableId="image-files">
                       {(provided) => (
@@ -516,7 +518,7 @@ export function ImageToolLayout({
                                   onClick={() => setSelectedFileId(file.id)}
                                 >
                                   <div {...provided.dragHandleProps} className="cursor-move">
-                                    <Move className="h-5 w-5 text-gray-400" />
+                                    <GripVertical className="h-5 w-5 text-gray-400" />
                                   </div>
                                   
                                   <div className="flex-shrink-0">
@@ -593,16 +595,16 @@ export function ImageToolLayout({
                       )}
                     </Droppable>
                   </DragDropContext>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               {/* Download Results */}
               {completedFiles.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Download Results</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className="bg-white rounded-lg border border-gray-200 mt-6">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Download Results</h3>
+                  </div>
+                  <div className="p-4">
                     <div className="flex gap-3">
                       <Button
                         onClick={downloadAllFiles}
@@ -616,73 +618,71 @@ export function ImageToolLayout({
                         Download ZIP
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Right Column - Fixed Sidebar */}
-            <div className="lg:col-span-1">
+            {/* Right Sidebar - Fixed Position (iLoveIMG Style) */}
+            <div className="w-80 flex-shrink-0">
               <div className="sticky top-8 space-y-6">
                 {/* Crop Options for Crop Tool */}
                 {toolType === "crop" && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Crop options</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                  <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6">Crop options</h3>
+                    
+                    <div className="space-y-4">
                       <div>
-                        <Label className="text-sm font-medium">Width (px)</Label>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Width (px)</Label>
                         <Input
                           type="number"
-                          value={cropSize.width}
-                          onChange={(e) => setCropSize(prev => ({ ...prev, width: parseInt(e.target.value) || 0 }))}
-                          className="mt-1"
+                          value={4878}
+                          readOnly
+                          className="w-full bg-gray-50"
                         />
                       </div>
                       <div>
-                        <Label className="text-sm font-medium">Height (px)</Label>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Height (px)</Label>
                         <Input
                           type="number"
-                          value={cropSize.height}
-                          onChange={(e) => setCropSize(prev => ({ ...prev, height: parseInt(e.target.value) || 0 }))}
-                          className="mt-1"
+                          value={3135}
+                          readOnly
+                          className="w-full bg-gray-50"
                         />
                       </div>
                       <div>
-                        <Label className="text-sm font-medium">Position X (px)</Label>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Position X (px)</Label>
                         <Input
                           type="number"
-                          value={cropPosition.x}
-                          onChange={(e) => setCropPosition(prev => ({ ...prev, x: parseInt(e.target.value) || 0 }))}
-                          className="mt-1"
+                          value={610}
+                          readOnly
+                          className="w-full bg-gray-50"
                         />
                       </div>
                       <div>
-                        <Label className="text-sm font-medium">Position Y (px)</Label>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Position Y (px)</Label>
                         <Input
                           type="number"
-                          value={cropPosition.y}
-                          onChange={(e) => setCropPosition(prev => ({ ...prev, y: parseInt(e.target.value) || 0 }))}
-                          className="mt-1"
+                          value={392}
+                          readOnly
+                          className="w-full bg-gray-50"
                         />
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Tool Options */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Settings className="h-5 w-5" />
-                      <span>Options</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <div className="flex items-center gap-2 mb-6">
+                    <Settings className="h-5 w-5 text-gray-600" />
+                    <h3 className="text-xl font-bold text-gray-900">Options</h3>
+                  </div>
+                  
+                  <div className="space-y-6">
                     {options.map((option) => (
                       <div key={option.key}>
-                        <Label htmlFor={option.key} className="text-sm font-medium">
+                        <Label htmlFor={option.key} className="text-sm font-medium text-gray-700 mb-2 block">
                           {option.label}
                         </Label>
                         
@@ -691,7 +691,7 @@ export function ImageToolLayout({
                             id={option.key}
                             value={processingOptions[option.key] || option.defaultValue}
                             onChange={(e) => setProcessingOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                            className="w-full p-2 border border-gray-300 rounded-md bg-white mt-1"
+                            className="w-full p-3 border border-gray-300 rounded-md bg-white text-sm"
                           >
                             {option.selectOptions?.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -702,24 +702,25 @@ export function ImageToolLayout({
                         )}
                         
                         {option.type === "slider" && (
-                          <div className="mt-2">
+                          <div>
+                            <div className="flex justify-between text-xs text-gray-500 mb-2">
+                              <span>{option.min || 0}</span>
+                              <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
+                              <span>{option.max || 100}</span>
+                            </div>
                             <Slider
                               value={[processingOptions[option.key] || option.defaultValue]}
                               onValueChange={(value) => setProcessingOptions(prev => ({ ...prev, [option.key]: value[0] }))}
                               min={option.min || 0}
                               max={option.max || 100}
                               step={option.step || 1}
+                              className="w-full"
                             />
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>{option.min || 0}</span>
-                              <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
-                              <span>{option.max || 100}</span>
-                            </div>
                           </div>
                         )}
                         
                         {option.type === "checkbox" && (
-                          <div className="flex items-center space-x-2 mt-2">
+                          <div className="flex items-center space-x-2">
                             <Checkbox
                               id={option.key}
                               checked={processingOptions[option.key] || option.defaultValue}
@@ -729,7 +730,7 @@ export function ImageToolLayout({
                         )}
                         
                         {option.type === "color" && (
-                          <div className="flex items-center space-x-2 mt-2">
+                          <div className="flex items-center space-x-2">
                             <input
                               type="color"
                               value={processingOptions[option.key] || option.defaultValue}
@@ -754,7 +755,7 @@ export function ImageToolLayout({
                               ...prev, 
                               [option.key]: option.type === "number" ? Number(e.target.value) : e.target.value 
                             }))}
-                            className="mt-2"
+                            className="w-full"
                             min={option.min}
                             max={option.max}
                             step={option.step}
@@ -762,32 +763,32 @@ export function ImageToolLayout({
                         )}
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Process Button */}
                 <Button
                   onClick={handleProcess}
                   disabled={isProcessing || files.length === 0}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white py-4 text-lg"
                   size="lg"
                 >
                   {isProcessing ? (
                     <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
                       Processing...
                     </>
                   ) : (
                     <>
-                      <Play className="h-4 w-4 mr-2" />
+                      <Play className="h-5 w-5 mr-2" />
                       {toolType.charAt(0).toUpperCase() + toolType.slice(1)} IMAGE
                     </>
                   )}
                 </Button>
 
                 {/* Ad Space */}
-                <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-sm text-gray-500 mb-2">Advertisement</div>
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-center">
+                  <div className="text-xs text-gray-500 mb-2">Advertisement</div>
                   <div className="bg-white border border-gray-300 rounded p-4 min-h-[250px] flex items-center justify-center">
                     <span className="text-gray-400">300x250 Ad Space</span>
                   </div>

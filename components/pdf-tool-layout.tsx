@@ -30,7 +30,8 @@ import {
   RotateCw,
   Scissors,
   Plus,
-  X
+  X,
+  Cloud
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -100,7 +101,7 @@ export function PDFToolLayout({
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [processingOptions, setProcessingOptions] = useState<Record<string, any>>({})
   const [splitMode, setSplitMode] = useState("range")
-  const [pageRangeInput, setPageRangeInput] = useState("1-5")
+  const [pageRanges, setPageRanges] = useState([{ from: 1, to: 5 }])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const additionalFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -114,27 +115,22 @@ export function PDFToolLayout({
   }, [options])
 
   const loadPDFPages = async (file: File): Promise<Array<{ pageNumber: number; thumbnail: string; selected: boolean; width: number; height: number }>> => {
-    // Generate realistic PDF page thumbnails
-    const pageCount = Math.floor(Math.random() * 15) + 5 // 5-20 pages
+    const pageCount = Math.floor(Math.random() * 15) + 5
     const pages = []
     
     for (let i = 1; i <= pageCount; i++) {
-      // Create realistic page thumbnail
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")!
       canvas.width = 120
       canvas.height = 160
       
-      // White background
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       
-      // Border
       ctx.strokeStyle = "#e5e7eb"
       ctx.lineWidth = 1
       ctx.strokeRect(0, 0, canvas.width, canvas.height)
       
-      // Content lines
       ctx.fillStyle = "#6b7280"
       ctx.font = "8px Arial"
       for (let line = 0; line < 15; line++) {
@@ -143,7 +139,6 @@ export function PDFToolLayout({
         ctx.fillRect(10, y, width, 2)
       }
       
-      // Page number
       ctx.fillStyle = "#374151"
       ctx.font = "10px Arial"
       ctx.textAlign = "center"
@@ -152,7 +147,7 @@ export function PDFToolLayout({
       pages.push({
         pageNumber: i,
         thumbnail: canvas.toDataURL("image/png"),
-        selected: true,
+        selected: i <= 5, // Default select first 5 pages
         width: 595,
         height: 842
       })
@@ -174,7 +169,6 @@ export function PDFToolLayout({
     const newFiles: ProcessedPDFFile[] = []
 
     for (const file of selectedFiles) {
-      // Validate file type
       if (file.type !== "application/pdf") {
         toast({
           title: "Invalid file type",
@@ -184,7 +178,6 @@ export function PDFToolLayout({
         continue
       }
 
-      // Validate file size
       if (file.size > maxFileSize * 1024 * 1024) {
         toast({
           title: "File too large",
@@ -194,7 +187,6 @@ export function PDFToolLayout({
         continue
       }
 
-      // Load PDF pages
       const pages = await loadPDFPages(file)
 
       const processedFile: ProcessedPDFFile = {
@@ -206,7 +198,7 @@ export function PDFToolLayout({
         progress: 0,
         pageCount: pages.length,
         pages,
-        selectedPages: pages.map(p => p.pageNumber)
+        selectedPages: pages.filter(p => p.selected).map(p => p.pageNumber)
       }
 
       newFiles.push(processedFile)
@@ -280,56 +272,19 @@ export function PDFToolLayout({
     try {
       let finalOptions = { ...processingOptions }
       
-      // For split tool, use selected pages
       if (toolType === "split" && files.length > 0) {
         const selectedPages = files[0].selectedPages || []
         if (selectedPages.length === 0) {
           throw new Error("Please select at least one page to split")
         }
         
-        // Convert selected pages to ranges
-        const ranges = []
-        if (splitMode === "range") {
-          // Parse page range input
-          const rangeParts = pageRangeInput.split(",").map(s => s.trim())
-          for (const part of rangeParts) {
-            if (part.includes("-")) {
-              const [from, to] = part.split("-").map(n => parseInt(n.trim()))
-              if (from && to && from <= to) {
-                ranges.push({ from, to })
-              }
-            } else {
-              const page = parseInt(part)
-              if (page) {
-                ranges.push({ from: page, to: page })
-              }
-            }
-          }
-        } else {
-          // Use selected pages
-          selectedPages.sort((a, b) => a - b)
-          let start = selectedPages[0]
-          let end = selectedPages[0]
-          
-          for (let i = 1; i < selectedPages.length; i++) {
-            if (selectedPages[i] === end + 1) {
-              end = selectedPages[i]
-            } else {
-              ranges.push({ from: start, to: end })
-              start = selectedPages[i]
-              end = selectedPages[i]
-            }
-          }
-          ranges.push({ from: start, to: end })
-        }
-        
-        finalOptions.pageRanges = ranges
+        finalOptions.pageRanges = pageRanges
+        finalOptions.selectedPages = selectedPages
       }
 
       const result = await processFunction(files, finalOptions)
       
       if (result.success && result.downloadUrl) {
-        // Create download
         const link = document.createElement("a")
         link.href = result.downloadUrl
         link.download = `${toolType}-result.${toolType === "convert" ? "zip" : "pdf"}`
@@ -337,7 +292,6 @@ export function PDFToolLayout({
         link.click()
         document.body.removeChild(link)
 
-        // Update file status
         setFiles(prev => prev.map(f => ({ ...f, status: "completed" as const, progress: 100 })))
         
         toast({
@@ -388,26 +342,6 @@ export function PDFToolLayout({
         )
         const selectedPages = updatedPages.filter(p => p.selected).map(p => p.pageNumber)
         
-        // Update page range input based on selection
-        if (selectedPages.length > 0) {
-          const sortedPages = selectedPages.sort((a, b) => a - b)
-          let ranges = []
-          let start = sortedPages[0]
-          let end = sortedPages[0]
-          
-          for (let i = 1; i < sortedPages.length; i++) {
-            if (sortedPages[i] === end + 1) {
-              end = sortedPages[i]
-            } else {
-              ranges.push(start === end ? `${start}` : `${start}-${end}`)
-              start = sortedPages[i]
-              end = sortedPages[i]
-            }
-          }
-          ranges.push(start === end ? `${start}` : `${start}-${end}`)
-          setPageRangeInput(ranges.join(", "))
-        }
-        
         return {
           ...file,
           pages: updatedPages,
@@ -423,7 +357,6 @@ export function PDFToolLayout({
       if (file.id === fileId && file.pages) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: true }))
         const selectedPages = updatedPages.map(p => p.pageNumber)
-        setPageRangeInput(`1-${file.pageCount}`)
         
         return {
           ...file,
@@ -439,7 +372,6 @@ export function PDFToolLayout({
     setFiles(prev => prev.map(file => {
       if (file.id === fileId && file.pages) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: false }))
-        setPageRangeInput("")
         
         return {
           ...file,
@@ -449,6 +381,20 @@ export function PDFToolLayout({
       }
       return file
     }))
+  }
+
+  const addPageRange = () => {
+    setPageRanges(prev => [...prev, { from: 1, to: 1 }])
+  }
+
+  const updatePageRange = (index: number, field: 'from' | 'to', value: number) => {
+    setPageRanges(prev => prev.map((range, i) => 
+      i === index ? { ...range, [field]: value } : range
+    ))
+  }
+
+  const removePageRange = (index: number) => {
+    setPageRanges(prev => prev.filter((_, i) => i !== index))
   }
 
   const formatFileSize = (bytes: number) => {
@@ -462,6 +408,15 @@ export function PDFToolLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      
+      {/* Ad Banner */}
+      <div className="bg-white border-b">
+        <div className="container mx-auto px-4 py-2">
+          <div className="bg-blue-50 border border-blue-200 rounded p-4 text-center">
+            <span className="text-sm text-blue-600">Advertisement</span>
+          </div>
+        </div>
+      </div>
       
       <div className="container mx-auto px-4 py-8">
         {/* File Upload Area */}
@@ -546,7 +501,7 @@ export function PDFToolLayout({
           </div>
         )}
 
-        {/* Main Interface */}
+        {/* Main Interface - iLovePDF Style Layout */}
         {files.length > 0 && (
           <div className="flex gap-6">
             {/* Left Column - Main Content */}
@@ -657,152 +612,236 @@ export function PDFToolLayout({
 
               {/* Page Selection for Split Tool */}
               {toolType === "split" && files.length > 0 && files[0].pages && (
-                <div className="bg-white rounded-lg border border-gray-200">
+                <div className="bg-white rounded-lg border border-gray-200 mb-6">
                   <div className="p-4 border-b border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Page Selection</h3>
-                    <p className="text-sm text-gray-600">Select pages to extract from the PDF</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Page Selection</h3>
+                        <p className="text-sm text-gray-600">Select pages to extract from the PDF</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => selectAllPages(files[0].id)}
+                          className="text-blue-600 border-blue-600"
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deselectAllPages(files[0].id)}
+                          className="text-gray-600 border-gray-300"
+                        >
+                          Deselect All
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="p-4">
-                    {/* Page Thumbnails */}
-                    <div className="mb-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-medium text-gray-900">Pages</h4>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => selectAllPages(files[0].id)}
-                            className="text-blue-600 border-blue-600"
-                          >
-                            Select All
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deselectAllPages(files[0].id)}
-                            className="text-gray-600 border-gray-300"
-                          >
-                            Deselect All
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-h-96 overflow-y-auto">
-                        {files[0].pages.map((page) => (
-                          <div
-                            key={page.pageNumber}
-                            className={`relative cursor-pointer border-2 rounded overflow-hidden transition-all ${
-                              page.selected
-                                ? "border-red-500 bg-red-50 shadow-md"
-                                : "border-gray-200 hover:border-red-300"
-                            }`}
-                            onClick={() => togglePageSelection(files[0].id, page.pageNumber)}
-                          >
-                            <div className="aspect-[3/4] bg-white">
-                              <img
-                                src={page.thumbnail}
-                                alt={`Page ${page.pageNumber}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
-                              {page.pageNumber}
-                            </div>
-                            {page.selected && (
-                              <div className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                                <CheckCircle className="h-3 w-3 text-white" />
-                              </div>
-                            )}
+                    <h4 className="font-medium text-gray-900 mb-4">Pages</h4>
+                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-h-96 overflow-y-auto">
+                      {files[0].pages.map((page) => (
+                        <div
+                          key={page.pageNumber}
+                          className={`relative cursor-pointer border-2 rounded overflow-hidden transition-all ${
+                            page.selected
+                              ? "border-red-500 bg-red-50 shadow-md"
+                              : "border-gray-200 hover:border-red-300"
+                          }`}
+                          onClick={() => togglePageSelection(files[0].id, page.pageNumber)}
+                        >
+                          <div className="aspect-[3/4] bg-white">
+                            <img
+                              src={page.thumbnail}
+                              alt={`Page ${page.pageNumber}`}
+                              className="w-full h-full object-cover"
+                            />
                           </div>
-                        ))}
-                      </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
+                            {page.pageNumber}
+                          </div>
+                          {page.selected && (
+                            <div className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                              <CheckCircle className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Page Ranges for Split Tool */}
+              {toolType === "split" && splitMode === "range" && (
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900">Page Ranges</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addPageRange}
+                        className="text-red-600 border-red-600"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Range
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 space-y-4">
+                    {pageRanges.map((range, index) => (
+                      <div key={index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700">Range {index + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">from page</span>
+                          <Input
+                            type="number"
+                            value={range.from}
+                            onChange={(e) => updatePageRange(index, 'from', parseInt(e.target.value) || 1)}
+                            className="w-20"
+                            min={1}
+                            max={files[0]?.pageCount || 100}
+                          />
+                          <span className="text-sm text-gray-600">to</span>
+                          <Input
+                            type="number"
+                            value={range.to}
+                            onChange={(e) => updatePageRange(index, 'to', parseInt(e.target.value) || 1)}
+                            className="w-20"
+                            min={1}
+                            max={files[0]?.pageCount || 100}
+                          />
+                        </div>
+                        {pageRanges.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removePageRange(index)}
+                            className="text-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Sidebar - Fixed Position */}
+            {/* Right Sidebar - Fixed Position (iLovePDF Style) */}
             <div className="w-80 flex-shrink-0">
               <div className="sticky top-8 space-y-6">
                 {/* Split Mode Options for Split Tool */}
                 {toolType === "split" && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Settings className="h-5 w-5 text-gray-600" />
-                      <h3 className="font-semibold text-gray-900">Options</h3>
-                    </div>
+                  <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6">Split</h3>
                     
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Split Mode</Label>
-                        <div className="flex gap-2">
-                          <Button
-                            variant={splitMode === "range" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSplitMode("range")}
-                            className={splitMode === "range" ? "bg-red-500 hover:bg-red-600" : ""}
-                          >
-                            Page Range
-                          </Button>
-                          <Button
-                            variant={splitMode === "pages" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSplitMode("pages")}
-                            className={splitMode === "pages" ? "bg-red-500 hover:bg-red-600" : ""}
-                          >
-                            Pages
-                          </Button>
-                          <Button
-                            variant={splitMode === "size" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSplitMode("size")}
-                            className={splitMode === "size" ? "bg-red-500 hover:bg-red-600" : ""}
-                          >
-                            Size
-                          </Button>
+                    {/* Split Mode Tabs */}
+                    <div className="mb-6">
+                      <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => setSplitMode("range")}
+                          className={`flex-1 p-3 text-center transition-colors ${
+                            splitMode === "range" 
+                              ? "bg-red-500 text-white" 
+                              : "bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex flex-col items-center">
+                            <Scissors className="h-5 w-5 mb-1" />
+                            <span className="text-xs">Range</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setSplitMode("pages")}
+                          className={`flex-1 p-3 text-center transition-colors border-l border-gray-200 ${
+                            splitMode === "pages" 
+                              ? "bg-red-500 text-white" 
+                              : "bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex flex-col items-center">
+                            <FileText className="h-5 w-5 mb-1" />
+                            <span className="text-xs">Pages</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setSplitMode("size")}
+                          className={`flex-1 p-3 text-center transition-colors border-l border-gray-200 ${
+                            splitMode === "size" 
+                              ? "bg-red-500 text-white" 
+                              : "bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex flex-col items-center">
+                            <Archive className="h-5 w-5 mb-1" />
+                            <span className="text-xs">Size</span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {splitMode === "range" && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">Range mode:</Label>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-red-50 border-red-200 text-red-600"
+                            >
+                              Custom ranges
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                            >
+                              Fixed ranges
+                            </Button>
+                          </div>
                         </div>
                       </div>
+                    )}
 
-                      {splitMode === "range" && (
-                        <div>
-                          <Label htmlFor="page-range" className="text-sm font-medium text-gray-700">
-                            Page Range (e.g., 1-5, 8-10)
-                          </Label>
-                          <Input
-                            id="page-range"
-                            value={pageRangeInput}
-                            onChange={(e) => setPageRangeInput(e.target.value)}
-                            placeholder="1-5"
-                            className="mt-1"
-                          />
-                        </div>
-                      )}
+                    {splitMode === "size" && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Number of Parts</Label>
+                        <Input
+                          type="number"
+                          value={processingOptions.equalParts || 2}
+                          onChange={(e) => setProcessingOptions(prev => ({ ...prev, equalParts: parseInt(e.target.value) || 2 }))}
+                          min={2}
+                          max={10}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
 
-                      {splitMode === "size" && (
-                        <div>
-                          <Label htmlFor="num-parts" className="text-sm font-medium text-gray-700">
-                            Number of Parts
-                          </Label>
-                          <Input
-                            id="num-parts"
-                            type="number"
-                            value={processingOptions.equalParts || 2}
-                            onChange={(e) => setProcessingOptions(prev => ({ ...prev, equalParts: parseInt(e.target.value) || 2 }))}
-                            min={2}
-                            max={10}
-                            className="mt-1"
-                          />
-                        </div>
-                      )}
+                    {/* Merge Option */}
+                    <div className="flex items-center space-x-2 mt-6">
+                      <Checkbox
+                        id="merge-ranges"
+                        checked={processingOptions.mergeRanges || false}
+                        onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, mergeRanges: checked }))}
+                      />
+                      <Label htmlFor="merge-ranges" className="text-sm text-gray-700">
+                        Merge all ranges in one PDF file.
+                      </Label>
                     </div>
                   </div>
                 )}
 
                 {/* Tool Options */}
-                {options.length > 0 && (
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                {options.length > 0 && toolType !== "split" && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Settings className="h-5 w-5 text-gray-600" />
                       <h3 className="font-semibold text-gray-900">Options</h3>
@@ -870,6 +909,7 @@ export function PDFToolLayout({
                               min={option.min}
                               max={option.max}
                               step={option.step}
+                              className="w-full"
                             />
                           )}
                         </div>
@@ -879,7 +919,7 @@ export function PDFToolLayout({
                 )}
 
                 {/* Process Panel */}
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <h3 className="font-semibold text-gray-900 mb-2">Process Files</h3>
                   <p className="text-sm text-gray-600 mb-4">
                     Ready to process {files.length} PDF file{files.length !== 1 ? "s" : ""}

@@ -139,14 +139,15 @@ export class ImageProcessor {
     return new Promise((resolve, reject) => {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")
-      if (!ctx || !options.cropArea) {
-        reject(new Error("Canvas not supported or crop area not specified"))
+      if (!ctx) {
+        reject(new Error("Canvas not supported"))
         return
       }
 
       const img = new Image()
       img.onload = () => {
-        const { x, y, width, height } = options.cropArea!
+        const cropArea = options.cropArea || { x: 10, y: 10, width: 80, height: 80 }
+        const { x, y, width, height } = cropArea
         const cropX = (x / 100) * img.naturalWidth
         const cropY = (y / 100) * img.naturalHeight
         const cropWidth = (width / 100) * img.naturalWidth
