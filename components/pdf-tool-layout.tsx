@@ -29,7 +29,8 @@ import {
   Eye,
   RotateCw,
   Scissors,
-  Plus
+  Plus,
+  X
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -98,7 +99,8 @@ export function PDFToolLayout({
   const [urlInput, setUrlInput] = useState("")
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [processingOptions, setProcessingOptions] = useState<Record<string, any>>({})
-  const [selectedRanges, setSelectedRanges] = useState<Array<{ from: number; to: number }>>([{ from: 1, to: 5 }])
+  const [splitMode, setSplitMode] = useState("range")
+  const [pageRangeInput, setPageRangeInput] = useState("1-5")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const additionalFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -145,7 +147,7 @@ export function PDFToolLayout({
       ctx.fillStyle = "#374151"
       ctx.font = "10px Arial"
       ctx.textAlign = "center"
-      ctx.fillText(`Page ${i}`, canvas.width / 2, canvas.height - 10)
+      ctx.fillText(`${i}`, canvas.width / 2, canvas.height - 10)
       
       pages.push({
         pageNumber: i,
@@ -276,10 +278,52 @@ export function PDFToolLayout({
     setIsProcessing(true)
     
     try {
-      // Update processing options with selected pages for split tool
       let finalOptions = { ...processingOptions }
-      if (toolType === "split" && selectedRanges.length > 0) {
-        finalOptions.pageRanges = selectedRanges
+      
+      // For split tool, use selected pages
+      if (toolType === "split" && files.length > 0) {
+        const selectedPages = files[0].selectedPages || []
+        if (selectedPages.length === 0) {
+          throw new Error("Please select at least one page to split")
+        }
+        
+        // Convert selected pages to ranges
+        const ranges = []
+        if (splitMode === "range") {
+          // Parse page range input
+          const rangeParts = pageRangeInput.split(",").map(s => s.trim())
+          for (const part of rangeParts) {
+            if (part.includes("-")) {
+              const [from, to] = part.split("-").map(n => parseInt(n.trim()))
+              if (from && to && from <= to) {
+                ranges.push({ from, to })
+              }
+            } else {
+              const page = parseInt(part)
+              if (page) {
+                ranges.push({ from: page, to: page })
+              }
+            }
+          }
+        } else {
+          // Use selected pages
+          selectedPages.sort((a, b) => a - b)
+          let start = selectedPages[0]
+          let end = selectedPages[0]
+          
+          for (let i = 1; i < selectedPages.length; i++) {
+            if (selectedPages[i] === end + 1) {
+              end = selectedPages[i]
+            } else {
+              ranges.push({ from: start, to: end })
+              start = selectedPages[i]
+              end = selectedPages[i]
+            }
+          }
+          ranges.push({ from: start, to: end })
+        }
+        
+        finalOptions.pageRanges = ranges
       }
 
       const result = await processFunction(files, finalOptions)
@@ -344,6 +388,26 @@ export function PDFToolLayout({
         )
         const selectedPages = updatedPages.filter(p => p.selected).map(p => p.pageNumber)
         
+        // Update page range input based on selection
+        if (selectedPages.length > 0) {
+          const sortedPages = selectedPages.sort((a, b) => a - b)
+          let ranges = []
+          let start = sortedPages[0]
+          let end = sortedPages[0]
+          
+          for (let i = 1; i < sortedPages.length; i++) {
+            if (sortedPages[i] === end + 1) {
+              end = sortedPages[i]
+            } else {
+              ranges.push(start === end ? `${start}` : `${start}-${end}`)
+              start = sortedPages[i]
+              end = sortedPages[i]
+            }
+          }
+          ranges.push(start === end ? `${start}` : `${start}-${end}`)
+          setPageRangeInput(ranges.join(", "))
+        }
+        
         return {
           ...file,
           pages: updatedPages,
@@ -359,6 +423,7 @@ export function PDFToolLayout({
       if (file.id === fileId && file.pages) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: true }))
         const selectedPages = updatedPages.map(p => p.pageNumber)
+        setPageRangeInput(`1-${file.pageCount}`)
         
         return {
           ...file,
@@ -374,6 +439,7 @@ export function PDFToolLayout({
     setFiles(prev => prev.map(file => {
       if (file.id === fileId && file.pages) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: false }))
+        setPageRangeInput("")
         
         return {
           ...file,
@@ -383,20 +449,6 @@ export function PDFToolLayout({
       }
       return file
     }))
-  }
-
-  const addRange = () => {
-    setSelectedRanges(prev => [...prev, { from: 1, to: 5 }])
-  }
-
-  const updateRange = (index: number, field: "from" | "to", value: number) => {
-    setSelectedRanges(prev => prev.map((range, i) => 
-      i === index ? { ...range, [field]: value } : range
-    ))
-  }
-
-  const removeRange = (index: number) => {
-    setSelectedRanges(prev => prev.filter((_, i) => i !== index))
   }
 
   const formatFileSize = (bytes: number) => {
@@ -412,22 +464,11 @@ export function PDFToolLayout({
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="p-3 rounded-lg bg-red-500/10">
-              <Icon className="h-8 w-8 text-red-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
-          </div>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">{description}</p>
-        </div>
-
         {/* File Upload Area */}
         {files.length === 0 && (
-          <div className="max-w-2xl mx-auto mb-8">
+          <div className="max-w-4xl mx-auto mb-8">
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-lg p-16 text-center transition-all cursor-pointer ${
                 dragActive 
                   ? "border-red-500 bg-red-50" 
                   : "border-gray-300 hover:border-red-400 hover:bg-gray-50"
@@ -437,16 +478,17 @@ export function PDFToolLayout({
               onDragLeave={handleDragLeave}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Select PDF files</h3>
-              <p className="text-gray-600 mb-6">or drop PDF files here</p>
+              <div className="w-20 h-20 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
+                <Icon className="h-10 w-10 text-red-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{title}</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">{description}</p>
               
               <Button 
                 size="lg" 
-                className="bg-red-500 hover:bg-red-600 text-white px-8 mb-4"
+                className="bg-red-500 hover:bg-red-600 text-white px-8 py-3 text-lg mb-6"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Choose PDF Files
+                Select PDF files
               </Button>
 
               <div className="flex justify-center">
@@ -488,8 +530,8 @@ export function PDFToolLayout({
                 </Tabs>
               </div>
 
-              <p className="text-xs text-gray-500 mt-6">
-                Maximum {maxFiles} files • PDF only • Up to {maxFileSize}MB per file
+              <p className="text-sm text-gray-500 mt-6">
+                or drop PDF files here
               </p>
             </div>
 
@@ -504,73 +546,78 @@ export function PDFToolLayout({
           </div>
         )}
 
-        {/* Main Interface - Two Column Layout */}
+        {/* Main Interface */}
         {files.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Files and Pages */}
-            <div className="lg:col-span-2 space-y-6">
+          <div className="flex gap-6">
+            {/* Left Column - Main Content */}
+            <div className="flex-1">
               {/* Files List */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>PDF Files ({files.length})</CardTitle>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => additionalFileInputRef.current?.click()}
-                        disabled={files.length >= maxFiles}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add More
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setFiles([])}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Clear All
-                      </Button>
-                    </div>
+              <div className="bg-white rounded-lg border border-gray-200 mb-6">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">PDF Files ({files.length})</h3>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => additionalFileInputRef.current?.click()}
+                      disabled={files.length >= maxFiles}
+                      className="text-blue-600 border-blue-600"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add More
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFiles([])}
+                      className="text-red-600 border-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear All
+                    </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                
+                <div className="p-4">
                   {allowPageReorder ? (
                     <DragDropContext onDragEnd={onDragEnd}>
                       <Droppable droppableId="pdf-files">
                         {(provided) => (
-                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
                             {files.map((file, index) => (
                               <Draggable key={file.id} draggableId={file.id} index={index}>
                                 {(provided, snapshot) => (
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
-                                    className={`border rounded-lg p-4 bg-white transition-all ${
-                                      snapshot.isDragging ? "shadow-lg" : "shadow-sm"
+                                    className={`flex items-center gap-4 p-4 border rounded-lg bg-white transition-all ${
+                                      snapshot.isDragging ? "shadow-lg" : "shadow-sm border-gray-200"
                                     }`}
                                   >
-                                    <div className="flex items-center space-x-4">
-                                      <div {...provided.dragHandleProps} className="cursor-move">
-                                        <GripVertical className="h-5 w-5 text-gray-400" />
-                                      </div>
-                                      <FileText className="h-8 w-8 text-red-500" />
-                                      <div className="flex-1">
-                                        <h4 className="font-medium">{file.name}</h4>
-                                        <p className="text-sm text-gray-500">
-                                          {file.pageCount} pages • {formatFileSize(file.size)}
-                                        </p>
-                                        {file.status === "processing" && (
-                                          <Progress value={file.progress} className="mt-2 h-2" />
-                                        )}
-                                      </div>
-                                      <Badge variant="outline">{index + 1}</Badge>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removeFile(file.id)}
-                                        className="text-gray-400 hover:text-red-600"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
+                                    <div {...provided.dragHandleProps} className="cursor-move">
+                                      <GripVertical className="h-5 w-5 text-gray-400" />
                                     </div>
+                                    <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center">
+                                      <FileText className="h-5 w-5 text-red-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <h4 className="font-medium text-gray-900">{file.name}</h4>
+                                      <p className="text-sm text-gray-500">
+                                        {file.pageCount} pages • {formatFileSize(file.size)}
+                                      </p>
+                                      {file.status === "processing" && (
+                                        <Progress value={file.progress} className="mt-2 h-2" />
+                                      )}
+                                    </div>
+                                    <div className="text-lg font-bold text-gray-400">{index + 1}</div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeFile(file.id)}
+                                      className="text-gray-400 hover:text-red-600"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                 )}
                               </Draggable>
@@ -581,50 +628,52 @@ export function PDFToolLayout({
                       </Droppable>
                     </DragDropContext>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {files.map((file, index) => (
-                        <div key={file.id} className="border rounded-lg p-4 bg-white">
-                          <div className="flex items-center space-x-4">
-                            <FileText className="h-8 w-8 text-red-500" />
-                            <div className="flex-1">
-                              <h4 className="font-medium">{file.name}</h4>
-                              <p className="text-sm text-gray-500">
-                                {file.pageCount} pages • {formatFileSize(file.size)}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFile(file.id)}
-                              className="text-gray-400 hover:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                        <div key={file.id} className="flex items-center gap-4 p-4 border rounded-lg bg-white border-gray-200">
+                          <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center">
+                            <FileText className="h-5 w-5 text-red-600" />
                           </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{file.name}</h4>
+                            <p className="text-sm text-gray-500">
+                              {file.pageCount} pages • {formatFileSize(file.size)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(file.id)}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
                       ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               {/* Page Selection for Split Tool */}
               {toolType === "split" && files.length > 0 && files[0].pages && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Page Selection</CardTitle>
-                    <CardDescription>Select pages to extract from the PDF</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Page Selection</h3>
+                    <p className="text-sm text-gray-600">Select pages to extract from the PDF</p>
+                  </div>
+                  
+                  <div className="p-4">
                     {/* Page Thumbnails */}
                     <div className="mb-6">
                       <div className="flex items-center justify-between mb-4">
-                        <Label className="text-sm font-medium">Pages</Label>
+                        <h4 className="font-medium text-gray-900">Pages</h4>
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => selectAllPages(files[0].id)}
+                            className="text-blue-600 border-blue-600"
                           >
                             Select All
                           </Button>
@@ -632,11 +681,13 @@ export function PDFToolLayout({
                             variant="outline"
                             size="sm"
                             onClick={() => deselectAllPages(files[0].id)}
+                            className="text-gray-600 border-gray-300"
                           >
                             Deselect All
                           </Button>
                         </div>
                       </div>
+                      
                       <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-h-96 overflow-y-auto">
                         {files[0].pages.map((page) => (
                           <div
@@ -667,171 +718,196 @@ export function PDFToolLayout({
                         ))}
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-                    {/* Range Configuration */}
+            {/* Right Sidebar - Fixed Position */}
+            <div className="w-80 flex-shrink-0">
+              <div className="sticky top-8 space-y-6">
+                {/* Split Mode Options for Split Tool */}
+                {toolType === "split" && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Settings className="h-5 w-5 text-gray-600" />
+                      <h3 className="font-semibold text-gray-900">Options</h3>
+                    </div>
+                    
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Page Ranges</Label>
-                        <Button variant="outline" size="sm" onClick={addRange}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Range
-                        </Button>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Split Mode</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={splitMode === "range" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSplitMode("range")}
+                            className={splitMode === "range" ? "bg-red-500 hover:bg-red-600" : ""}
+                          >
+                            Page Range
+                          </Button>
+                          <Button
+                            variant={splitMode === "pages" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSplitMode("pages")}
+                            className={splitMode === "pages" ? "bg-red-500 hover:bg-red-600" : ""}
+                          >
+                            Pages
+                          </Button>
+                          <Button
+                            variant={splitMode === "size" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSplitMode("size")}
+                            className={splitMode === "size" ? "bg-red-500 hover:bg-red-600" : ""}
+                          >
+                            Size
+                          </Button>
+                        </div>
                       </div>
-                      
-                      {selectedRanges.map((range, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
-                          <span className="text-sm text-gray-500">Range {index + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <Label className="text-sm">from page</Label>
-                            <Input
-                              type="number"
-                              value={range.from}
-                              onChange={(e) => updateRange(index, "from", parseInt(e.target.value) || 1)}
-                              className="w-20"
-                              min={1}
-                              max={files[0]?.pageCount || 100}
-                            />
-                            <Label className="text-sm">to</Label>
-                            <Input
-                              type="number"
-                              value={range.to}
-                              onChange={(e) => updateRange(index, "to", parseInt(e.target.value) || 1)}
-                              className="w-20"
-                              min={1}
-                              max={files[0]?.pageCount || 100}
-                            />
-                          </div>
-                          {selectedRanges.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeRange(index)}
-                              className="text-red-500 hover:text-red-700"
+
+                      {splitMode === "range" && (
+                        <div>
+                          <Label htmlFor="page-range" className="text-sm font-medium text-gray-700">
+                            Page Range (e.g., 1-5, 8-10)
+                          </Label>
+                          <Input
+                            id="page-range"
+                            value={pageRangeInput}
+                            onChange={(e) => setPageRangeInput(e.target.value)}
+                            placeholder="1-5"
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+
+                      {splitMode === "size" && (
+                        <div>
+                          <Label htmlFor="num-parts" className="text-sm font-medium text-gray-700">
+                            Number of Parts
+                          </Label>
+                          <Input
+                            id="num-parts"
+                            type="number"
+                            value={processingOptions.equalParts || 2}
+                            onChange={(e) => setProcessingOptions(prev => ({ ...prev, equalParts: parseInt(e.target.value) || 2 }))}
+                            min={2}
+                            max={10}
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tool Options */}
+                {options.length > 0 && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Settings className="h-5 w-5 text-gray-600" />
+                      <h3 className="font-semibold text-gray-900">Options</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {options.map((option) => (
+                        <div key={option.key}>
+                          <Label htmlFor={option.key} className="text-sm font-medium text-gray-700 mb-2 block">
+                            {option.label}
+                          </Label>
+                          
+                          {option.type === "select" && (
+                            <select
+                              id={option.key}
+                              value={processingOptions[option.key] || option.defaultValue}
+                              onChange={(e) => setProcessingOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
+                              className="w-full p-2 border border-gray-300 rounded-md bg-white"
                             >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              {option.selectOptions?.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          
+                          {option.type === "slider" && (
+                            <div>
+                              <Slider
+                                value={[processingOptions[option.key] || option.defaultValue]}
+                                onValueChange={(value) => setProcessingOptions(prev => ({ ...prev, [option.key]: value[0] }))}
+                                min={option.min || 0}
+                                max={option.max || 100}
+                                step={option.step || 1}
+                                className="mb-2"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500">
+                                <span>{option.min || 0}</span>
+                                <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
+                                <span>{option.max || 100}</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {option.type === "checkbox" && (
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={option.key}
+                                checked={processingOptions[option.key] || option.defaultValue}
+                                onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, [option.key]: checked }))}
+                              />
+                            </div>
+                          )}
+                          
+                          {(option.type === "text" || option.type === "number") && (
+                            <Input
+                              id={option.key}
+                              type={option.type}
+                              value={processingOptions[option.key] || option.defaultValue}
+                              onChange={(e) => setProcessingOptions(prev => ({ 
+                                ...prev, 
+                                [option.key]: option.type === "number" ? Number(e.target.value) : e.target.value 
+                              }))}
+                              min={option.min}
+                              max={option.max}
+                              step={option.step}
+                            />
                           )}
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Right Column - Fixed Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-8 space-y-6">
-                {/* Options Panel */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Settings className="h-5 w-5" />
-                      <span>Options</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {options.map((option) => (
-                      <div key={option.key}>
-                        <Label htmlFor={option.key} className="text-sm font-medium">
-                          {option.label}
-                        </Label>
-                        
-                        {option.type === "select" && (
-                          <select
-                            id={option.key}
-                            value={processingOptions[option.key] || option.defaultValue}
-                            onChange={(e) => setProcessingOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                            className="w-full p-2 border border-gray-300 rounded-md bg-white mt-1"
-                          >
-                            {option.selectOptions?.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        
-                        {option.type === "slider" && (
-                          <div className="mt-2">
-                            <Slider
-                              value={[processingOptions[option.key] || option.defaultValue]}
-                              onValueChange={(value) => setProcessingOptions(prev => ({ ...prev, [option.key]: value[0] }))}
-                              min={option.min || 0}
-                              max={option.max || 100}
-                              step={option.step || 1}
-                            />
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>{option.min || 0}</span>
-                              <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
-                              <span>{option.max || 100}</span>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {option.type === "checkbox" && (
-                          <div className="flex items-center space-x-2 mt-2">
-                            <Checkbox
-                              id={option.key}
-                              checked={processingOptions[option.key] || option.defaultValue}
-                              onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, [option.key]: checked }))}
-                            />
-                          </div>
-                        )}
-                        
-                        {(option.type === "text" || option.type === "number") && (
-                          <Input
-                            id={option.key}
-                            type={option.type}
-                            value={processingOptions[option.key] || option.defaultValue}
-                            onChange={(e) => setProcessingOptions(prev => ({ 
-                              ...prev, 
-                              [option.key]: option.type === "number" ? Number(e.target.value) : e.target.value 
-                            }))}
-                            className="mt-2"
-                            min={option.min}
-                            max={option.max}
-                            step={option.step}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
+                  </div>
+                )}
 
                 {/* Process Panel */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Process Files</CardTitle>
-                    <CardDescription>
-                      Ready to process {files.length} PDF file{files.length !== 1 ? "s" : ""}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button
-                      onClick={handleProcess}
-                      disabled={isProcessing || files.length === 0}
-                      className="w-full bg-red-500 hover:bg-red-600 text-white"
-                      size="lg"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          {toolType === "split" ? "Split PDF" : "Start Processing"}
-                        </>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Process Files</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Ready to process {files.length} PDF file{files.length !== 1 ? "s" : ""}
+                  </p>
+                  
+                  <Button
+                    onClick={handleProcess}
+                    disabled={isProcessing || files.length === 0}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3"
+                    size="lg"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        {toolType === "split" ? "Split PDF" : "Start Processing"}
+                      </>
+                    )}
+                  </Button>
+                </div>
 
                 {/* Ad Space */}
-                <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 text-center">
-                  <div className="text-sm text-gray-500 mb-2">Advertisement</div>
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-center">
+                  <div className="text-xs text-gray-500 mb-2">Advertisement</div>
                   <div className="bg-white border border-gray-300 rounded p-4 min-h-[250px] flex items-center justify-center">
                     <span className="text-gray-400">300x250 Ad Space</span>
                   </div>

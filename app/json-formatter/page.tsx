@@ -21,7 +21,8 @@ import {
   Trash2,
   Eye,
   Share2,
-  Heart
+  Heart,
+  AlertCircle
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
