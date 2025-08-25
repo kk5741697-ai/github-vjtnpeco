@@ -1,0 +1,865 @@
+You are tasked with building Pixora – a comprehensive multi-domain web tools ecosystem using Next.js 14 App Router. This is an enterprise-grade platform targeting 10M+ monthly visitors with advanced monetization features.
+
+## Project Overview
+
+**Platform**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Framer Motion
+**Architecture**: Client-side/WASM processing only (no heavy server compute)
+**Database**: PostgreSQL with Prisma, Redis for caching/rate limiting
+**Authentication**: NextAuth with Google/GitHub OAuth
+**Payments**: Stripe integration with multiple subscription tiers
+**Analytics**: Google Analytics 4 + PostHog for detailed event tracking
+
+## Multi-Domain Structure (CRITICAL REQUIREMENT)
+
+### Domain Configuration:
+- **PixoraTools.com** (Global Hub): Shows ALL tools from every category
+- **PixoraPDF.com**: PDF tools only (inspired by iLovePDF)
+- **PixoraIMG.com**: Image tools only (inspired by iLoveIMG) 
+- **PixoraQRCode.com**: QR/Barcode tools (inspired by QRCode-Monkey)
+- **PixoraNet.com**: Network/system tools
+- **PixoraSEO.com**: SEO tools (inspired by SmallSEOTools)
+- **PixoraCode.com**: Code/dev tools (inspired by CodeBeautify)
+- **PixoraUtilities.com**: General utility tools
+
+### Multi-Domain Behavior Rules:
+1. **Global Domain (PixoraTools.com)**:
+   - Display all tools across all categories
+   - Global search returns every available tool
+   - Navigation shows all categories
+
+2. **Tool-Specific Domains**:
+   - Show only relevant category tools in navigation/search/sitemap
+   - Include "More Tools ▾" dropdown with outbound links to other domains
+   - Cross-domain navigation preserves user context
+   - Canonical URLs must point to tool's native domain
+
+3. **URL Structure**: `domain.com/tool-name` (flat structure, no nested paths)
+
+## Core Tool Categories & Requirements
+
+### A) PDF Tools (PixoraPDF.com) - Minimum 6 tools
+- Merge PDF (bulk processing, reorder pages, single output)
+- Split PDF (by page range, per page, custom splits)
+- Compress PDF (image optimization, metadata stripping)
+- PDF to Images (PNG/WebP/AVIF export, page selection)
+- Rotate/Organize Pages (drag-and-drop interface)
+- Protect/Unlock PDF (password management)
+
+**Technical Implementation**: pdf-lib, pdfjs-dist, wasm-imagemagick
+
+### B) Image Tools (PixoraIMG.com) - Minimum 6 tools
+- Compress Images (quality slider, metadata stripping, bulk)
+- Resize/Crop (aspect ratio presets, fit/fill modes, bulk)
+- Convert Formats (JPG/PNG/WebP/AVIF/SVG support)
+- Add Watermarks (text/image overlays, positioning, bulk)
+- Extract Colors/Metadata (palette extraction, EXIF data)
+- Generate Favicons (multiple sizes, ZIP bundle)
+
+**Technical Implementation**: Squoosh codecs, Canvas API, Pica for resampling
+
+### C) QR/Barcode Tools (PixoraQRCode.com) - Minimum 4 tools
+- QR Code Generator (custom colors, logos, eye shapes, SVG/PNG export)
+- Bulk QR from CSV (batch processing, ZIP export)
+- QR Scanner (file upload + webcam support)
+- Barcode Generator (EAN/UPC/Code128, multiple formats)
+
+**Technical Implementation**: qr-code-styling, jsQR, @zxing/library, bwip-js
+
+### D) Code/Dev Tools (PixoraCode.com) - Minimum 7 tools
+- JSON Beautify/Validate/Minify
+- XML/HTML/CSS/JS Formatters + Minifiers
+- Base64/URL/HTML Entity Encode/Decode
+- Regex Tester (syntax highlighting, real-time testing)
+- UUID/Token/Password Generators
+- Code Diff Viewer (side-by-side + unified views)
+- Hash Generators (MD5, SHA1, SHA256, etc.)
+
+**Technical Implementation**: Prettier, terser, csso, html-minifier-terser, Monaco Editor
+
+### E) SEO Tools (PixoraSEO.com) - Minimum 5 tools
+- Meta Tag Generator (OG, Twitter Cards, Schema.org)
+- Redirect Checker (HTTP status, redirect chains)
+- Robots.txt Generator
+- Sitemap Generator
+- Keyword Density Analyzer
+
+**Technical Implementation**: Client-side + lightweight Edge API for external data
+
+### F) Network Tools (PixoraNet.com) - Minimum 4 tools
+- SSL Certificate Checker
+- User Agent Parser
+- IP Address Lookup
+- Domain/DNS Lookup
+
+**Technical Implementation**: Client-side + minimal Edge proxy for external APIs
+
+### G) Utilities (PixoraUtilities.com) - Minimum 6 tools
+- Unit Converter (length, weight, temperature, etc.)
+- Color Converter (HEX/RGB/HSL/LAB)
+- Time Zone Converter
+- Lorem Ipsum Generator
+- Currency Converter
+- Text Case Converter
+
+## UI/UX Requirements (Match Reference Sites Exactly)
+
+### Tool Interface Pattern:
+1. **Step-by-step header**: (1) Add Files → (2) Configure → (3) Process → (4) Download
+2. **File Upload Zone**: Drag-and-drop + file picker + paste + URL import
+3. **Bulk Processing**: File chips with size/type, remove/reorder, progress bars
+4. **Processing Controls**: Start button with progress, cancel, retry failed
+5. **Results Interface**: Preview grid, individual downloads, "Download All ZIP", share options
+
+### Navigation Structure:
+- Logo + "Tools" mega menu (category grid)
+- Search omnibox with fuzzy matching
+- Domain-specific: Show only relevant category + "More Tools ▾" dropdown
+- Mobile-responsive hamburger menu
+
+### Ad Placement Zones:
+- Header banner (728×90)
+- Sidebar display (300×250)
+- Inline responsive ads
+- Mobile sticky bottom
+- Interstitial between heavy operations
+
+## Technical Architecture
+
+### Client-Side Processing (MANDATORY):
+- All file processing must happen in browser/Web Workers/WASM
+- No server-side file processing or heavy compute
+- Streaming ZIP creation for bulk downloads
+- Progress tracking with cancellation support
+
+### Database Schema (Implement These Entities):
+```typescript
+// Core entities to implement
+User (id, email, name, role, plan, createdAt, lastLoginAt)
+Domain (id, host, themeJson, enabledTools[], adsSettings, seoConfig)
+Tool (id, slug, title, category, metaJson, isActive)
+DomainTool (domainId, toolId, enabled, position, customConfig)
+Job (id, userId, domainId, toolId, status, inputsJson, resultJson, timestamps)
+UsageDaily (id, userId, domainId, date, runs, bytesProcessed)
+Subscription (id, userId, plan, status, stripeData, currentPeriodEnd)
+ApiKey (id, userId, keyHash, scopes, rateLimit)
+AbTestAssignment (id, userId, domainId, testName, variant)
+AuditLog (id, actorId, action, target, beforeJson, afterJson, createdAt)
+```
+
+### Performance Targets:
+- Lighthouse Score: 100 on static pages, ≥95 on tool pages
+- LCP < 2.0s, CLS < 0.05, TTI < 2.5s
+- Code splitting per tool category
+- Lazy loading for tool bundles
+
+## Admin Panel Requirements (Full Implementation)
+
+### Dashboard Features:
+- Real-time metrics: active users, tool runs/minute, error rates
+- Domain breakdown analytics
+- Top performing tools
+- Ad impression tracking
+- Revenue analytics
+
+### Domain Management:
+- Add/edit domain branding (logo, colors, fonts)
+- Configure enabled tools per domain
+- Set "Other Tools" menu mappings
+- Analytics IDs and AdSense settings
+- SEO meta defaults
+- Plan-based feature limits
+
+### Tool Management:
+- Enable/disable tools per domain
+- Set default configurations
+- Reorder tool display
+- A/B test variants
+- Usage analytics per tool
+
+### User & Subscription Management:
+- User roles and permissions
+- Subscription status and billing
+- Usage limits and overrides
+- API key management
+- Activity history
+
+## Monetization Strategy
+
+### Subscription Tiers:
+- **Free**: Ads enabled, file size limits (100MB), daily usage caps
+- **Pro**: Ad-free, higher limits (1GB files), priority processing
+- **Business**: White-label options, API access, bulk processing
+- **Enterprise**: Custom branding, dedicated support, SLA
+
+### Ad Integration (Google AdSense):
+- Consent-aware ad loading
+- Auto-refresh with frequency caps
+- Responsive ad units
+- Performance monitoring
+- A/B testing for ad placements
+
+### Additional Revenue:
+- Rewarded video ads (reset daily limits)
+- Affiliate partnerships
+- White-label licensing
+- API access tiers
+
+## Security & Compliance
+
+### Security Measures:
+- CSP headers, XSS protection (DOMPurify)
+- Rate limiting per IP/user/API key
+- Bot protection (Cloudflare Turnstile)
+- Secure authentication (HttpOnly cookies, SameSite)
+- Input validation and sanitization
+
+### Privacy Compliance:
+- GDPR/CCPA consent management
+- Data export/deletion capabilities
+- Retention policy configuration
+- Cookie consent banner
+- Privacy policy integration
+
+## SEO & Content Strategy
+
+### Technical SEO:
+- Canonical URLs pointing to native domains
+- Open Graph and Twitter Card meta tags
+- JSON-LD structured data (FAQ, HowTo schemas)
+- XML sitemaps per domain
+- Robots.txt configuration
+- Hreflang for internationalization
+
+### Content Requirements:
+- Tool-specific landing pages with descriptions
+- FAQ sections with schema markup
+- How-to guides and tutorials
+- Internal linking between related tools
+- Category hub pages
+
+## PWA & Offline Support
+
+### Progressive Web App Features:
+- Installable with custom icons per domain
+- Offline functionality for client-side tools
+- Background sync for queued operations
+- Service worker caching strategy
+- Push notifications for completed jobs
+
+## Analytics & A/B Testing
+
+### Event Tracking:
+- Tool usage analytics (open, start, complete, fail)
+- User journey tracking
+- Conversion funnel analysis
+- Ad performance metrics
+- Error monitoring and alerting
+
+### A/B Testing Framework:
+- Variant assignment persistence
+- Conversion rate optimization
+- UI/UX testing capabilities
+- Performance impact measurement
+
+## Quality Assurance
+
+### Testing Requirements:
+- Unit tests for core transformation functions
+- E2E tests (Playwright) for 10 flagship tools
+- Performance testing with Lighthouse CI
+- Cross-browser compatibility testing
+- Mobile responsiveness validation
+
+### Acceptance Criteria:
+- All tools must perform real transformations (no placeholders)
+- Bulk processing support for all file-based tools
+- ZIP export functionality for multiple files
+- Error handling and user feedback
+- Accessibility compliance (WCAG 2.1 AA)
+
+## Deployment & Infrastructure
+
+### Hosting Requirements:
+- CDN integration for global performance
+- Edge computing for lightweight APIs
+- Database clustering for high availability
+- Redis caching layer
+- Object storage for optional file persistence
+
+### Environment Configuration:
+```env
+NEXT_PUBLIC_ADSENSE_CLIENT=
+STRIPE_SECRET_KEY=
+GA4_MEASUREMENT_ID=
+POSTHOG_API_KEY=
+DATABASE_URL=
+REDIS_URL=
+NEXTAUTH_SECRET=
+```
+
+## Deliverables Checklist
+
+### Core Application:
+- [ ] Multi-domain routing system
+- [ ] Minimum 33 working tools across all categories
+- [ ] Bulk processing for all file-based tools
+- [ ] Admin panel with full functionality
+- [ ] User authentication and subscription system
+- [ ] AdSense integration with multiple ad formats
+- [ ] PWA implementation with offline support
+- [ ] SEO optimization for all pages
+- [ ] Analytics and A/B testing framework
+- [ ] Mobile-responsive design matching reference sites
+
+### Technical Implementation:
+- [ ] Client-side processing architecture
+- [ ] Database schema with all required entities
+- [ ] API endpoints for authentication and analytics
+- [ ] Security measures and compliance features
+- [ ] Performance optimization meeting targets
+- [ ] Error handling and monitoring
+- [ ] Automated testing suite
+- [ ] Documentation and deployment guides
+
+
+📊 BUSINESS GOALS
+
+$100K+/month revenue within 12 months.
+10M+ monthly global users.
+Enterprise-grade valuation $1M+.
+
+💰 MONETIZATION STRATEGY
+Adsense & Google Ad Manager → Smart placements (header, sidebar, inline, footer).
+Premium Memberships → Ad-free, bulk, faster processing, API access.
+Freemium tiers: Free, Pro, Business, Enterprise.
+Affiliate integrations (SEO, hosting, VPN, stock resources).
+White-label licensing (agencies can rebrand tools).
+Rewarded ads/videos to reset usage/bandwidth.
+
+👉 Total tools: 300+ across all domains (expandable via plugin system).
+
+Mobile-Responsive & PWA-ready (offline capabilities).
+
+
+Build this as a production-ready platform that can handle millions of users while maintaining excellent performance and user experience. Every tool must be fully functional with real processing capabilities, not placeholder content.
+
+🔹 Tools
+
+All tools must be client-side only (no server load).
+
+Supported tools (initial list):
+
+PDF tools (merge, split, compress, convert, unlock, protect)
+
+Image tools (resize, crop, convert, optimize)
+
+Code tools (formatter, beautifier, minifier, validators, encoders/decoders)
+
+QR code generator (custom styles, logos, tracking)
+
+Add an extensible system to plug in new tools easily.
+
+🔹 Admin Panel
+
+Super admin dashboard with:
+
+Manage tools (enable/disable, categories, metadata, SEO titles/descriptions)
+
+Manage ads (Google Ad Manager slots, positions, rules)
+
+Manage domains (assign tools per domain)
+
+Analytics (traffic, tool usage, ad performance)
+
+Backup & restore (full config + ads + SEO + user prefs)
+
+Role-based access (admin, editor, advertiser).
+
+🔹 Ads & Monetization (Google Ad Manager + AdSense)
+
+Integrate AdSense via Google Ad Manager (GAM).
+
+Supported ad slots:
+
+Banner ads (header, footer, inline content)
+
+Sticky ads (bottom fixed on mobile)
+
+Responsive display ads (auto-fit per screen)
+
+In-page video ads (AdSense video units)
+
+Rewarded video ads (user watches to unlock premium actions, e.g. unlimited downloads)
+
+Interstitial ads (between heavy tool operations)
+
+Ad features:
+
+Auto-refresh ads (configurable interval in GAM).
+
+Frequency capping per user.
+
+A/B testing support.
+
+Multi-zone/geographic targeting (from GAM).
+
+Dark mode ad compatibility.
+
+🔹 User Features
+
+No login required (free access, like ilovepdf).
+
+Optional premium (ad-free) plan via Stripe or PayPal.
+
+Multi-language support (auto-detect + manual select).
+
+Mobile-first responsive design.
+
+🔹 Technical
+
+Next.js + Tailwind for frontend.
+
+No server load — all tools run 100% client-side (WebAssembly, JavaScript, browser APIs).
+
+Fast CDN delivery for global speed.
+
+Cookie + localStorage system for user preferences (theme, language, last tool used).
+
+Analytics integration: Google Analytics 4 + GAM reporting.
+
+🔹 Performance & Scaling
+
+Optimized for hundreds of millions of monthly visitors.
+
+CDN caching + static tool hosting.
+
+Ads & analytics should not slow tool performance.
+
+🔹 Example UX
+
+Visiting x.com → see all tools.
+
+Visiting xpdf.com → only PDF tools are focused.
+
+“More Tools” menu shows other categories → redirect to correct domain.
+
+Admin can add new tool from dashboard → instantly available on assigned domains.
+
+✅ Goal
+
+Deliver a production-ready SaaS platform that:
+
+Matches and surpasses ilovepdf, iloveimg, codebeautify, qr-code-monkey.
+
+Supports multi-domain tool distribution.
+
+Uses AdSense via GAM for monetization with full ad slot support.
+
+Scales to 160M+ traffic/month per domain.
+
+
+📌 Google Ad Manager (GAM) – Ad Slots, Formats & Features
+1. Ad Slot Types
+
+Standard Display Slots
+
+Banner Ads (Leaderboard, Medium Rectangle, Skyscraper, etc.)
+
+Responsive Display Slots
+
+Native Ad Slots
+
+Customizable, match site/app UI
+
+Video Ad Slots
+
+Instream (pre-roll, mid-roll, post-roll)
+
+Outstream (video within article, sticky, floating)
+
+Rewarded Video (mobile/web)
+
+Companion Video Ads (banner alongside video)
+
+Interstitial Slots
+
+Full-screen ads (web & app)
+
+Expandable / Rich Media Slots
+
+Expands on hover or click
+
+Anchor / Sticky Slots
+
+Bottom or top fixed banners
+
+Rewarded Ads
+
+User unlocks reward (coins, downloads, content access)
+
+2. Ad Formats
+
+Display (Static / Rich Media)
+
+JPG, PNG, GIF, HTML5, AMP ads
+
+Video
+
+VAST (Video Ad Serving Template)
+
+VPAID (Video Player-Ad Interface Definition)
+
+VMAP (Video Multiple Ad Playlist)
+
+Audio Ads
+
+In-app or in-site audio ads
+
+Native
+
+In-feed, recommendation, content-style
+
+Programmatic Guaranteed
+
+Deals with fixed impressions & price
+
+Open Auction / Header Bidding
+
+Competes with other demand sources
+
+3. Advanced Features
+
+Auto Refresh Ads
+
+Refresh slots after X seconds (user active/in-view only)
+
+Lazy Loading
+
+Ads load only when user scrolls near them
+
+Active View
+
+Tracks viewability % (whether ad is seen)
+
+Dynamic Allocation
+
+Always picks the highest-paying ad
+
+Ad Targeting
+
+Geography, device, OS, browser, interest-based, contextual
+
+Frequency Capping
+
+Limit number of impressions per user/session
+
+Dayparting / Scheduling
+
+Ads shown only at certain times
+
+Roadblocks
+
+All ads on page owned by same advertiser
+
+Creative Rotation
+
+Optimize by CTR, even distribution, or sequential rotation
+
+Passback Ads
+
+If no ad is served, fallback ad is shown
+
+Responsive Ads
+
+Automatically adapt to screen sizes
+
+Companion Ads
+
+Banner + video combo campaigns
+
+Ad Rules for Video
+
+Set rules: Pre-roll every 10 minutes, mid-roll every 20, etc.
+
+Multi-size / Flexible Ad Slots
+
+e.g., 300×250 + 336×280 allowed in same slot
+
+Consent & Privacy
+
+GDPR, CCPA, COPPA, TCF 2.2 compliance tools
+
+4. Revenue & Optimization Features
+
+Rewarded Ads (video or playable)
+
+Header Bidding Integration
+
+Ad Exchange (AdX) Integration
+
+Floor Price Rules
+
+Optimized Pricing
+
+Experiments (A/B testing)
+
+Dynamic eCPM Bidding
+
+AdPodding (for long-form video)
+
+Multiple sequential ads in one break
+
+5. Analytics & Reporting
+
+Granular Reports
+
+Impressions, Clicks, CTR, Revenue
+
+Custom Dimensions
+
+Per domain, section, user type
+
+Ad Viewability Reports
+
+Video Quartile Tracking
+
+25%, 50%, 75%, 100% video completion
+
+Reward Verification
+
+Track reward completion on rewarded ads
+
+Real-time Reporting
+
+For monitoring live demand
+
+PROJECT: Pixora – Multi-Domain Web Tools Ecosystem (Next.js 14 App Router)
+
+GOAL
+Build an enterprise-grade, monetization-focused, multi-domain tools platform that competes with iLovePDF, iLoveIMG, CodeBeautify, and QRCode-Monkey. Traffic target: 10M+/month. Must support AdSense, subscriptions, bulk processing, and a client-side/WASM-first architecture (no heavy server compute). No dummy data or placeholders: all shipped tools must actually work.
+
+BRANDS & DOMAINS (MANDATORY)
+- Global hub (all tools work): PixoraTools.com
+- PDF suite: PixoraPDF.com
+- Image suite: PixoraIMG.com
+- QR/Barcode suite: PixoraQRCode.com
+- Network/System tools: PixoraNet.com
+- SEO suite: PixoraSEO.com
+- Code/Dev tools: PixoraCode.com
+- Utilities/General: PixoraUtilities.com
+
+MULTI-DOMAIN BEHAVIOR (CRITICAL)
+1) On PixoraTools.com (global):
+   - Show and run ALL tools across all categories.
+   - Global search returns every tool.
+   - “Categories” nav lists all categories.
+
+2) On any tool-focused domain (e.g., PixoraPDF.com):
+   - Show only the relevant category tools (e.g., PDF tools) in navbar, sidebar, search, sitemap.
+   - Provide a “More ▾ → Other Tools” dropdown listing non-domain tools as OUTBOUND LINKS to their owning domain (e.g., “Image Resize → PixoraIMG.com/image-resize”).
+   - Clicking any “Other Tool” navigates to that tool’s domain (no local duplicate).
+   - Canonical/og tags must reflect the correct domain for each tool.
+
+3) Cross-domain UX:
+   - Each tool page shows “Related Tools” prioritized within the current domain; then a secondary “Other Pixora Tools” list linking to other domains.
+   - Global footer: quick links to each Pixora domain and top tools.
+
+ARCHITECTURE (NEXT.JS, NO SERVER HEAVY JOBS)
+- Next.js 14 (App Router), React 18, TypeScript strict, Tailwind + shadcn/ui, Framer Motion.
+- Client-side/WASM processing first for heavy tasks (PDF, image, media) using:
+  - PDF: pdf-lib, pdfjs-dist, wasm-imagemagick (or Squoosh codecs where applicable).
+  - Images: Squoosh codecs (mozjpeg/oxipng/webp/avif), browser-image-compression, Pica for resampling.
+  - QR/Barcode: qr-code-styling (logo, eye shapes), jsQR/@zxing/library (scanner), bwip-js (barcodes).
+  - Minify/Beautify: terser, css-tree/csso, html-minifier-terser, Prettier for beautify.
+- Web Workers for concurrency + smooth UI; chunked bulk processing; streaming ZIP creation in browser.
+- Edge/lightweight API only where necessary (auth, subscriptions, analytics beacons, URL metadata fetcher with CORS-safe proxy, reward-ad verification). Absolutely no server-side heavy conversions.
+- Database: Postgres (Prisma) for admin/users/subscriptions/limits/analytics summaries. Redis (Upstash or managed) for rate limits, ephemeral queues (lightweight), session throttles. Object storage (R2/S3) optional for saving exports the user chooses to persist; default is in-browser download.
+- PWA: Workbox; offline support for client tools; background sync for queued operations.
+- Analytics: GA4 + PostHog events. A/B testing via simple variant flag + user hash.
+
+SECURITY & COMPLIANCE
+- CSP, XSS protection (DOMPurify where needed), safe URL handling, no eval.
+- Auth: NextAuth (email/password + Google/GitHub), HttpOnly cookies, SameSite=Lax, secure in prod.
+- Rate limiting: per IP + user + API key for the small set of APIs (auth, analytics, metadata fetch).
+- Bot defense: Cloudflare Turnstile on high-risk forms.
+- GDPR/CCPA: consent banner, data export/delete, retention windows configurable by plan.
+- No server-uploaded files for processing; files stay local in the browser unless user explicitly saves to cloud storage integration (future).
+
+PERFORMANCE TARGETS
+- Lighthouse: 100 on static pages; ≥95 on tool pages with ads.
+- LCP < 2.0s, CLS < 0.05, TTI < 2.5s on mid-range mobile.
+- All tool bundles lazy-loaded; workers loaded on demand.
+- Code splitting per tool; prefetch likely next tool.
+
+UI/UX (MATCH ATTACHMENTS EXACTLY)
+- Follow the uploaded screenshots for: 
+  - iLovePDF uploader/editor flow (PDF tools).
+  - iLoveIMG uploader/editor flow (image tools).
+  - QRCode-Monkey’s customization UI (QR tools).
+- Shared tool layout:
+  - Step header (1) Add files (2) Configure (3) Process (4) Download/Share.
+  - Drag-and-drop zone + file picker + paste + URL import.
+  - Bulk chips with per-file size/type, remove/reorder, total counter, progress bars.
+  - “Start” button with progress state, cancel, retry failed.
+  - Results grid: previews, per-file download, “Download All (ZIP)”, Copy Link (if persisted to storage), Share buttons, and “Try another tool”.
+- Nav/Header:
+  - Logo, “Tools” mega menu (category grid), search omnibox with fuzzy match.
+  - On tool-specific domains, only show that category in focus. Add a “More ▾ Other Tools” with deep links to tools on other domains.
+- Ads:
+  - Prepared AdSense components (header 728×90, sidebar 300×250, inline responsive).
+  - Optional auto-refresh with frequency caps; consent-aware.
+- Accessibility: keyboard nav, ARIA, high contrast theme.
+
+MONETIZATION
+- AdSense (env var: NEXT_PUBLIC_ADSENSE_CLIENT). Respect policies and consent.
+- Subscriptions with Stripe: Free, Pro, Business, Enterprise.
+  - Free: ads on, file caps (e.g., 100MB/file), limited parallel jobs, daily tool runs.
+  - Pro+: ad-free, higher caps (up to 1GB/file), more concurrency, priority worker pool (client workers prioritized + UI QoS).
+- Rewarded video to reset daily usage: user watches → server verifies via webhook (anti-fraud with token + Turnstile).
+- Affiliates: link manager per domain (hosting/VPN/stock photos etc).
+- White-label ready: domain theming + logo + palette + allowed tools set.
+
+ADMIN PANEL (BUILD NOW)
+- Authenticated (Admin/Domain Admin/Moderator/User).
+- Real-time dashboard: active users, tool runs/min, errors, ad impressions (from client events), top tools, domain breakdown.
+- Domain Manager: add/edit domain branding (logo, colors, fonts), set enabled tools, edit “Other Tools” menu mapping (destination domain per tool), analytics IDs, AdSense settings, limits (bandwidth counters are logical since client-side; still track estimated egress from downloads), and SEO meta defaults.
+- Tool Manager: enable/disable per domain, set defaults (e.g., image quality presets), toggle bulk limit, reorder display, A/B variants.
+- User/Subscription Manager: roles, plan, limits, API key issuance, activity history.
+- Experiments (A/B): define variant keys, percentage split, track outcomes (CTR, conversion).
+- Logs & Alerts: client error stream (Sentry/PostHog), anomaly flags (spike in failures).
+- No placeholders—UI must fully function with the database.
+
+DATABASE ENTITIES (IMPLEMENT)
+- User(id, email, name, role, plan, createdAt, lastLoginAt, twoFAEnabled?)
+- Domain(id, host, themeJson, enabledTools[], adsSettingsJson, seoJson, createdAt)
+- Tool(id, slug, title, category, metaJson, createdAt, updatedAt)
+- DomainTool(domainId, toolId, enabled, position)
+- Job(id, userId?, domainId, toolId, status, mode, inputsJson, resultJson, startedAt, finishedAt, error?)
+- UsageDaily(id, userId?, domainId, date, runs, estBytesOut, estBytesIn)
+- Subscription(id, userId, plan, status, provider, currentPeriodEnd)
+- ApiKey(id, userId, keyHash, scopes, rateLimit)
+- AbTestAssignment(id, userId?, domainId, testName, variant)
+- AuditLog(id, actorId, action, target, beforeJson, afterJson, createdAt)
+
+TOOL CATALOG (TARGET 300+, BUILD THESE NOW—ALL MUST BE REAL, WORKING, NO PLACEHOLDERS)
+A) PDF (PixoraPDF.com)
+  1. Merge PDF (bulk; reorder; single output) – pdf-lib; browser ZIP for batch outputs.
+  2. Split PDF (by range/per page) – pdf-lib.
+  3. Compress PDF (image downscale + recompress pages) – wasm-imagemagick pipelines.
+  4. PDF → Images (PNG/WebP/AVIF, per-page selection; ZIP export) – pdfjs-dist render to canvas.
+  5. Rotate/Organize pages (drag grid UI) – pdf-lib.
+  6. Protect/Unlock (set/remove password) – pdf-lib (note unlock requires user-provided password only).
+  *All PDF tools must support bulk (multi-file input) and ZIP outputs when N>1.*
+
+B) Image (PixoraIMG.com)
+  7. Compress Images (quality slider, strip metadata; bulk) – Squoosh codecs.
+  8. Resize/Crop (aspect presets, fit/fill; bulk) – Canvas/Pica.
+  9. Convert (JPG/PNG/WebP/AVIF/SVG→PNG) – Squoosh/Canvas; SVG sanitization.
+  10. Watermark (text/image overlays; bulk) – Canvas.
+  11. Palette/Metadata extractor – exifr/web, canvas sampling.
+  12. Favicon/Thumbnails bundle generator – multiple sizes ZIP.
+  *Bulk mandatory for all image tools.*
+
+C) QR/Barcode (PixoraQRCode.com)
+  13. QR Code Generator (static; custom colors, logo, eye shapes; SVG/PNG/EPS export).
+  14. Bulk QR from CSV (text/URL per row; ZIP export).
+  15. QR Scanner (file/webcam) – jsQR or @zxing/library.
+  16. Barcodes (EAN/UPC/Code128/QR) – bwip-js; SVG/PNG export.
+
+D) Code/Dev (PixoraCode.com)
+  17. JSON Beautify/Validate/Minify – JSON.parse/stringify, Prettier for beautify.
+  18. XML/HTML/CSS/JS Formatters + Minifiers – Prettier/terser/csso/html-minifier-terser.
+  19. Base64/URL/HTML Entity Encode/Decode.
+  20. Regex Tester (PCRE-ish syntax highlighting) – Monaco/CodeMirror + on-the-fly evaluation.
+  21. UUID/Token/Password generators (crypto.getRandomValues).
+  22. Diff (side-by-side + unified) – diff-match-patch.
+
+E) SEO (PixoraSEO.com) — client UI + light Edge metadata proxy only
+  23. Meta/OG/Schema generator (forms → JSON-LD + preview).
+  24. Redirect Checker / HTTP Headers (calls Edge proxy to fetch headers only).
+  25. Robots.txt & Sitemap generator (client-side templates).
+  *No heavy crawling; keep Edge fetches time-limited and CORS-safe.*
+
+F) Network/System (PixoraNet.com) — client UI + light Edge proxy
+  26. SSL/TLS viewer (Edge fetch to get cert info via a simple proxy endpoint; parse certificate data returned by upstream API if needed).
+  27. User Agent parser (client).
+  28. IP lookup (public IP via WebRTC STUN + optional upstream API with key in env).
+  *Keep within light limits; no server pings/traceroute.*
+
+G) Utilities (PixoraUtilities.com)
+  29. Unit Converter (length/weight/temp etc) – client.
+  30. Color Converter (HEX/RGB/HSL/LAB) – client.
+  31. Time Zone Converter – client (Intl APIs).
+  32. Lorem Ipsum / Random generators – client.
+  33. Currency converter (client UI + rates cached daily via light Edge endpoint).
+
+BULK RULES
+- Every file-based tool must support multi-file selection and queueing.
+- Outputs for multiple files must be downloadable individually and as a single ZIP (built client-side).
+- Show per-file progress and errors without blocking the whole batch.
+
+NAVIGATION & “OTHER TOOLS” RULES (RESTATE)
+- Each domain shows its category tools in header/mega menu.
+- Add “More ▾ Other Tools” that lists non-domain tools; each item links to its native domain page.
+- On global domain, show everything. On tool domains, search only within that domain by default, but show a “See results on PixoraTools.com” toggle to expand scope (links navigate cross-domain).
+
+SEO & CONTENT
+- Titles, meta description, OG/Twitter cards per tool/domain. 
+- Canonical URLs must always point to the tool’s owning domain (avoid dupe content).
+- FAQ schema (JSON-LD) on tool pages; HowTo schema where applicable.
+- Sitemaps per domain; robots.txt; hreflang when multi-language is enabled.
+- Tool docs/FAQ pages (MDX) with internal linking to related tools and category hubs.
+
+PWA & OFFLINE
+- Installable PWA with icons per domain.
+- Offline cache: tool shells, WASM bundles, last N results in IndexedDB.
+- Background sync for queued operations; show offline badge.
+
+ANALYTICS & A/B
+- GA4 for pageviews + conversions; PostHog for events (tool_open, run_start, run_ok, run_fail, export_zip, share_click, signup, plan_upgrade, ad_impression if permitted).
+- A/B framework: variant assignment persisted per user/device; compare CTR/LCP/conversion.
+
+RATELIMITS & FAIR USE
+- Since tools are client-side, enforce logical limits via app state + local storage + user account limits; subscriptions raise caps.
+- For Edge endpoints (auth, metadata, payments), apply IP+user+key rate limits and small payload caps.
+
+PAYMENTS & PLANS
+- Stripe Checkout + Billing portal.
+- Free, Pro, Business, Enterprise with these toggles: max file size, daily jobs, concurrency, ad-free, custom branding, API access (when exposed), domain white-label.
+
+ADSENSE (REQUIRED)
+- Ad components: header, sidebar, inline. Load script once; consent-aware.
+- Optional auto-refresh with interval caps (e.g., 60–120s) and visibility checks.
+- Ad zones configurable per domain from Admin.
+
+ADMIN ACCEPTANCE CRITERIA (NO PLACEHOLDERS)
+- Admin login with roles.
+- Dashboard charts: active users, jobs/min, top tools, domain breakdown, error rate.
+- Domain manager: add/edit domain brand + theme + enabled tools + “Other Tools” mapping + analytics IDs + AdSense settings + SEO defaults + plan caps.
+- Tool manager: enable/disable per domain, set defaults, order, A/B variants.
+- Subscriptions: view users, plan, status; upgrade/downgrade; coupons.
+- Logs: last 100 errors, last 100 jobs, anomaly notices.
+- Audit log: every admin change recorded.
+
+QUALITY & TESTING
+- No fake outputs: all implemented tools must perform real transformations in browser/worker/WASM.
+- Include unit tests for core transforms and e2e (Playwright) for 10 flagship tools (merge PDF, split PDF, compress PDF, PDF→Images, compress images, resize images, QR generate, QR scan, JSON beautify, HTML minify).
+- Lighthouse CI checks; do not ship pages that fail ≥95 score (except ads pages where ≥90 is acceptable with a note).
+
+DELIVERABLES (MUST SHIP WORKING)
+- Running Next.js app with:
+  - Multi-domain behavior (global vs domain-specific).
+  - At least 16 fully working tools from the list above (bulk where file-based).
+  - Admin panel with domain + tool + ads + plans management.
+  - Subscriptions (Stripe), AdSense slots, Rewarded reset flow stub with anti-fraud verification.
+  - PWA enabled, offline tooling for client-only tools.
+  - SEO (meta, OG, canonical), sitemaps, robots.
+  - Analytics + A/B wiring.
+- No placeholders or fake content. Use environment variables for secrets (e.g., NEXT_PUBLIC_ADSENSE_CLIENT, STRIPE_SECRET, GA4_ID). All UI strings editable.
+
+NON-NEGOTIABLES
+- All file tools support bulk selection and ZIP export when N>1.
+- On tool domains, non-domain tools appear ONLY under “More ▾ Other Tools” and link away to their native domain pages.
+- Global domain runs everything locally (client-side/WASM) without overloading servers.
+- Exact UI parity with provided iLovePDF/iLoveIMG/QRCode-Monkey screenshots for uploader/editor flows.
+- Top-tier performance and accessibility.
