@@ -18,18 +18,26 @@ const splitOptions = [
     ],
   },
   {
-    key: "pageRange",
-    label: "Page Range (e.g., 1-5, 8-10)",
-    type: "text" as const,
-    defaultValue: "1-5",
-  },
-  {
     key: "equalParts",
     label: "Number of Parts",
     type: "number" as const,
     defaultValue: 2,
     min: 2,
     max: 10,
+  },
+  {
+    key: "maxSizeKB",
+    label: "Maximum Size (KB)",
+    type: "number" as const,
+    defaultValue: 38,
+    min: 1,
+    max: 10000,
+  },
+  {
+    key: "allowCompression",
+    label: "Allow Compression",
+    type: "checkbox" as const,
+    defaultValue: true,
   },
 ]
 
@@ -43,43 +51,7 @@ async function splitPDF(files: any[], options: any) {
     }
 
     const file = files[0]
-    let ranges: Array<{ from: number; to: number }> = []
-
-    if (options.splitMode === "range") {
-      // Parse page range string like "1-5, 8-10"
-      const rangeStr = options.pageRange || "1-5"
-      const rangeParts = rangeStr.split(",").map(s => s.trim())
-      
-      for (const part of rangeParts) {
-        if (part.includes("-")) {
-          const [from, to] = part.split("-").map(n => parseInt(n.trim()))
-          if (from && to && from <= to) {
-            ranges.push({ from, to })
-          }
-        } else {
-          const page = parseInt(part)
-          if (page) {
-            ranges.push({ from: page, to: page })
-          }
-        }
-      }
-    } else if (options.splitMode === "pages") {
-      // Split each page individually (simulate 10 pages)
-      for (let i = 1; i <= 10; i++) {
-        ranges.push({ from: i, to: i })
-      }
-    } else if (options.splitMode === "size") {
-      // Split into equal parts (simulate 10 pages)
-      const totalPages = 10
-      const pagesPerPart = Math.ceil(totalPages / options.equalParts)
-      for (let i = 0; i < options.equalParts; i++) {
-        const from = i * pagesPerPart + 1
-        const to = Math.min((i + 1) * pagesPerPart, totalPages)
-        if (from <= totalPages) {
-          ranges.push({ from, to })
-        }
-      }
-    }
+    const ranges = options.pageRanges || [{ from: 1, to: 5 }]
 
     const splitResults = await PDFProcessor.splitPDF(file.originalFile, ranges)
 

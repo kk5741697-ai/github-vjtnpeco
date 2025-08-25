@@ -37,12 +37,12 @@ async function cropImages(files: any[], options: any) {
   try {
     const processedFiles = await Promise.all(
       files.map(async (file) => {
-        const cropArea = { x: 10, y: 10, width: 80, height: 80 }
+        const cropArea = file.cropArea || { x: 10, y: 10, width: 80, height: 80 }
         
         const processedBlob = await ImageProcessor.cropImage(
           file.originalFile || file.file,
-          cropArea,
           {
+            cropArea,
             outputFormat: options.outputFormat,
             quality: options.quality,
             backgroundColor: options.backgroundColor

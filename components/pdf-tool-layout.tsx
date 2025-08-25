@@ -33,6 +33,7 @@ import {
   X,
   Cloud
 } from "lucide-react"
+import { PDFProcessor } from "@/lib/processors/pdf-processor"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
 
@@ -115,45 +116,58 @@ export function PDFToolLayout({
   }, [options])
 
   const loadPDFPages = async (file: File): Promise<Array<{ pageNumber: number; thumbnail: string; selected: boolean; width: number; height: number }>> => {
-    const pageCount = Math.floor(Math.random() * 15) + 5
-    const pages = []
-    
-    for (let i = 1; i <= pageCount; i++) {
-      const canvas = document.createElement("canvas")
-      const ctx = canvas.getContext("2d")!
-      canvas.width = 120
-      canvas.height = 160
+    try {
+      const { pages: pdfPages } = await PDFProcessor.getPDFInfo(file)
+      return pdfPages.map(page => ({
+        pageNumber: page.pageNumber,
+        thumbnail: page.thumbnail,
+        selected: page.pageNumber <= 5, // Default select first 5 pages
+        width: page.width,
+        height: page.height
+      }))
+    } catch (error) {
+      console.error("Failed to load PDF pages:", error)
+      // Fallback to placeholder pages
+      const pageCount = 7 // Default fallback
+      const pages = []
       
-      ctx.fillStyle = "#ffffff"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      
-      ctx.strokeStyle = "#e5e7eb"
-      ctx.lineWidth = 1
-      ctx.strokeRect(0, 0, canvas.width, canvas.height)
-      
-      ctx.fillStyle = "#6b7280"
-      ctx.font = "8px Arial"
-      for (let line = 0; line < 15; line++) {
-        const y = 20 + line * 8
-        const width = Math.random() * 80 + 20
-        ctx.fillRect(10, y, width, 2)
+      for (let i = 1; i <= pageCount; i++) {
+        const canvas = document.createElement("canvas")
+        const ctx = canvas.getContext("2d")!
+        canvas.width = 120
+        canvas.height = 160
+        
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        ctx.strokeStyle = "#e5e7eb"
+        ctx.lineWidth = 1
+        ctx.strokeRect(0, 0, canvas.width, canvas.height)
+        
+        ctx.fillStyle = "#6b7280"
+        ctx.font = "8px Arial"
+        for (let line = 0; line < 15; line++) {
+          const y = 20 + line * 8
+          const width = Math.random() * 80 + 20
+          ctx.fillRect(10, y, width, 2)
+        }
+        
+        ctx.fillStyle = "#374151"
+        ctx.font = "10px Arial"
+        ctx.textAlign = "center"
+        ctx.fillText(`${i}`, canvas.width / 2, canvas.height - 10)
+        
+        pages.push({
+          pageNumber: i,
+          thumbnail: canvas.toDataURL("image/png"),
+          selected: i <= 5,
+          width: 595,
+          height: 842
+        })
       }
       
-      ctx.fillStyle = "#374151"
-      ctx.font = "10px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`${i}`, canvas.width / 2, canvas.height - 10)
-      
-      pages.push({
-        pageNumber: i,
-        thumbnail: canvas.toDataURL("image/png"),
-        selected: i <= 5, // Default select first 5 pages
-        width: 595,
-        height: 842
-      })
+      return pages
     }
-    
-    return pages
   }
 
   const handleFileSelection = useCallback(async (selectedFiles: File[]) => {
@@ -273,13 +287,34 @@ export function PDFToolLayout({
       let finalOptions = { ...processingOptions }
       
       if (toolType === "split" && files.length > 0) {
-        const selectedPages = files[0].selectedPages || []
-        if (selectedPages.length === 0) {
-          throw new Error("Please select at least one page to split")
+        if (splitMode === "pages") {
+          const selectedPages = files[0].selectedPages || []
+          if (selectedPages.length === 0) {
+            throw new Error("Please select at least one page to split")
+          }
+          
+          // Convert selected pages to ranges
+          const ranges = selectedPages.map(page => ({ from: page, to: page }))
+          finalOptions.pageRanges = ranges
+        } else if (splitMode === "range") {
+          finalOptions.pageRanges = pageRanges
+        } else if (splitMode === "size") {
+          // Calculate ranges based on file size
+          const totalPages = files[0].pageCount || 1
+          const equalParts = finalOptions.equalParts || 2
+          const pagesPerPart = Math.ceil(totalPages / equalParts)
+          const ranges = []
+          
+          for (let i = 0; i < equalParts; i++) {
+            const from = i * pagesPerPart + 1
+            const to = Math.min((i + 1) * pagesPerPart, totalPages)
+            if (from <= totalPages) {
+              ranges.push({ from, to })
+            }
+          }
+          
+          finalOptions.pageRanges = ranges
         }
-        
-        finalOptions.pageRanges = pageRanges
-        finalOptions.selectedPages = selectedPages
       }
 
       const result = await processFunction(files, finalOptions)
@@ -391,6 +426,9 @@ export function PDFToolLayout({
     setPageRanges(prev => prev.map((range, i) => 
       i === index ? { ...range, [field]: value } : range
     ))
+    
+    // Update processing options to reflect the change
+    setProcessingOptions(prev => ({ ...prev, pageRanges: pageRanges }))
   }
 
   const removePageRange = (index: number) => {
@@ -676,59 +714,28 @@ export function PDFToolLayout({
               )}
 
               {/* Page Ranges for Split Tool */}
-              {toolType === "split" && splitMode === "range" && (
+              {toolType === "split" && splitMode === "range" && files.length > 0 && (
                 <div className="bg-white rounded-lg border border-gray-200">
                   <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">Page Ranges</h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addPageRange}
-                        className="text-red-600 border-red-600"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Range
-                      </Button>
-                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Range Preview</h3>
+                    <p className="text-sm text-gray-600">
+                      Showing pages {pageRanges[0]?.from || 1} to {pageRanges[0]?.to || 7} of {files[0].pageCount || 7}
+                    </p>
                   </div>
                   
-                  <div className="p-4 space-y-4">
-                    {pageRanges.map((range, index) => (
-                      <div key={index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700">Range {index + 1}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600">from page</span>
-                          <Input
-                            type="number"
-                            value={range.from}
-                            onChange={(e) => updatePageRange(index, 'from', parseInt(e.target.value) || 1)}
-                            className="w-20"
-                            min={1}
-                            max={files[0]?.pageCount || 100}
-                          />
-                          <span className="text-sm text-gray-600">to</span>
-                          <Input
-                            type="number"
-                            value={range.to}
-                            onChange={(e) => updatePageRange(index, 'to', parseInt(e.target.value) || 1)}
-                            className="w-20"
-                            min={1}
-                            max={files[0]?.pageCount || 100}
-                          />
+                  <div className="p-4">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <div className="flex items-center justify-center gap-4">
+                        <div className="w-16 h-20 bg-white border border-gray-300 rounded shadow-sm flex items-center justify-center">
+                          <span className="text-xs text-gray-500">{pageRanges[0]?.from || 1}</span>
                         </div>
-                        {pageRanges.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removePageRange(index)}
-                            className="text-red-600"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="text-gray-400">...</div>
+                        <div className="w-16 h-20 bg-white border border-gray-300 rounded shadow-sm flex items-center justify-center">
+                          <span className="text-xs text-gray-500">{pageRanges[0]?.to || 7}</span>
+                        </div>
                       </div>
-                    ))}
+                      <p className="text-sm text-gray-600 mt-4">Range 1</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -736,7 +743,7 @@ export function PDFToolLayout({
 
             {/* Right Sidebar - Fixed Position (iLovePDF Style) */}
             <div className="w-80 flex-shrink-0">
-              <div className="sticky top-8 space-y-6">
+              <div className="lg:sticky lg:top-8 space-y-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
                 {/* Split Mode Options for Split Tool */}
                 {toolType === "split" && (
                   <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -787,6 +794,36 @@ export function PDFToolLayout({
                       </div>
                     </div>
 
+                    {/* Extract Mode Toggle for Pages */}
+                    {splitMode === "pages" && (
+                      <div className="mb-6">
+                        <Label className="text-sm font-medium text-gray-700 mb-3 block">Extract mode:</Label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 bg-red-50 border-red-200 text-red-600"
+                          >
+                            Extract all pages
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            Select pages
+                          </Button>
+                        </div>
+                        
+                        {files.length > 0 && files[0].selectedPages && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              Selected pages will be converted into separate PDF files. {files[0].selectedPages.length} PDF will be created.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {splitMode === "range" && (
                       <div className="space-y-4">
                         <div>
@@ -808,20 +845,83 @@ export function PDFToolLayout({
                             </Button>
                           </div>
                         </div>
+                        
+                        {/* Range Input */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">Range 1</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">from page</span>
+                            <Input
+                              type="number"
+                              value={pageRanges[0]?.from || 1}
+                              onChange={(e) => updatePageRange(0, 'from', parseInt(e.target.value) || 1)}
+                              className="w-16 text-center"
+                              min={1}
+                              max={files[0]?.pageCount || 100}
+                            />
+                            <span className="text-sm text-gray-600">to</span>
+                            <Input
+                              type="number"
+                              value={pageRanges[0]?.to || 7}
+                              onChange={(e) => updatePageRange(0, 'to', parseInt(e.target.value) || 7)}
+                              className="w-16 text-center"
+                              min={1}
+                              max={files[0]?.pageCount || 100}
+                            />
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addPageRange}
+                            className="w-full text-red-600 border-red-600"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Range
+                          </Button>
+                        </div>
                       </div>
                     )}
 
                     {splitMode === "size" && (
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700 mb-2 block">Number of Parts</Label>
-                        <Input
-                          type="number"
-                          value={processingOptions.equalParts || 2}
-                          onChange={(e) => setProcessingOptions(prev => ({ ...prev, equalParts: parseInt(e.target.value) || 2 }))}
-                          min={2}
-                          max={10}
-                          className="w-full"
-                        />
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-3 block">Original file size: {files[0] ? (files[0].size / 1024).toFixed(2) : '0'} KB</Label>
+                          <Label className="text-sm font-medium text-gray-700 mb-3 block">Total pages: {files[0]?.pageCount || 0}</Label>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">Maximum size per file:</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={processingOptions.maxSizeKB || 38}
+                              onChange={(e) => setProcessingOptions(prev => ({ ...prev, maxSizeKB: parseInt(e.target.value) || 38 }))}
+                              className="w-20 text-center"
+                              min={1}
+                            />
+                            <span className="text-sm text-gray-600">KB</span>
+                            <span className="text-sm text-gray-600">MB</span>
+                          </div>
+                        </div>
+                        
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-800">
+                            This PDF will be split into files no larger than {processingOptions.maxSizeKB || 38} KB each.
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="allow-compression"
+                            checked={processingOptions.allowCompression || true}
+                            onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, allowCompression: checked }))}
+                          />
+                          <Label htmlFor="allow-compression" className="text-sm text-gray-700">
+                            Allow compression
+                          </Label>
+                        </div>
                       </div>
                     )}
 

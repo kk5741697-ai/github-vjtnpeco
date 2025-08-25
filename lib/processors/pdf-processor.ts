@@ -1,3 +1,5 @@
+import { PDFProcessor as PDFProcessorLib } from "@/lib/pdf-processor"
+
 import { PDFDocument, rgb, StandardFonts, PageSizes } from "pdf-lib"
 import * as pdfjsLib from "pdfjs-dist"
 
@@ -34,7 +36,7 @@ export class PDFProcessor {
     const pageCount = pdf.numPages
     const pages: PDFPageInfo[] = []
 
-    for (let i = 1; i <= Math.min(pageCount, 10); i++) { // Limit thumbnails for performance
+    for (let i = 1; i <= pageCount; i++) {
       const page = await pdf.getPage(i)
       const viewport = page.getViewport({ scale: 0.5 })
       
@@ -98,7 +100,15 @@ export class PDFProcessor {
     const pdf = await PDFDocument.load(arrayBuffer)
     const results: Uint8Array[] = []
 
-    for (const range of ranges) {
+    // Validate ranges against actual page count
+    const totalPages = pdf.getPageCount()
+    const validRanges = ranges.filter(range => 
+      range.from >= 1 && 
+      range.to <= totalPages && 
+      range.from <= range.to
+    )
+
+    for (const range of validRanges) {
       const newPdf = await PDFDocument.create()
       const startPage = Math.max(0, range.from - 1)
       const endPage = Math.min(pdf.getPageCount() - 1, range.to - 1)

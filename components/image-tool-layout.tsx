@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Archive,
   Move,
+  GripVertical,
   RotateCw,
   Crop,
   Palette,
@@ -263,6 +264,11 @@ export function ImageToolLayout({
         }
 
         try {
+          // Update file with current crop area if it's crop tool
+          if (toolType === "crop" && file.id === selectedFileId) {
+            file.cropArea = cropArea
+          }
+          
           const result = await processFunction([file], processingOptions)
           
           if (result.success && result.processedFiles) {
@@ -440,22 +446,54 @@ export function ImageToolLayout({
               {/* Image Preview and Crop Interface */}
               {toolType === "crop" && selectedFile && (
                 <div className="bg-white rounded-lg border border-gray-200 mb-6 overflow-hidden">
-                  <div className="relative bg-gray-100" style={{ minHeight: "400px" }}>
+                  <div className="relative bg-gray-100 overflow-hidden" style={{ minHeight: "400px", maxHeight: "600px" }}>
                     <img
                       src={selectedFile.preview}
                       alt="Crop preview"
-                      className="w-full h-full object-contain"
-                      style={{ maxHeight: "500px" }}
+                      className="w-full h-full object-contain cursor-crosshair"
+                      style={{ maxHeight: "600px" }}
+                      onMouseDown={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const x = ((e.clientX - rect.left) / rect.width) * 100
+                        const y = ((e.clientY - rect.top) / rect.height) * 100
+                        setCropArea(prev => ({ ...prev, x: Math.max(0, Math.min(100 - prev.width, x)), y: Math.max(0, Math.min(100 - prev.height, y)) }))
+                      }}
                     />
                     
                     {/* Crop Overlay - Visual Crop Area */}
                     <div
-                      className="absolute border-2 border-blue-500 bg-blue-500/20 cursor-move"
+                      className="absolute border-2 border-blue-500 bg-blue-500/20 cursor-move select-none"
                       style={{
                         left: `${cropArea.x}%`,
                         top: `${cropArea.y}%`,
                         width: `${cropArea.width}%`,
                         height: `${cropArea.height}%`
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        const startX = e.clientX
+                        const startY = e.clientY
+                        const startCropX = cropArea.x
+                        const startCropY = cropArea.y
+                        
+                        const handleMouseMove = (e: MouseEvent) => {
+                          const deltaX = ((e.clientX - startX) / (e.target as HTMLElement).parentElement!.offsetWidth) * 100
+                          const deltaY = ((e.clientY - startY) / (e.target as HTMLElement).parentElement!.offsetHeight) * 100
+                          
+                          setCropArea(prev => ({
+                            ...prev,
+                            x: Math.max(0, Math.min(100 - prev.width, startCropX + deltaX)),
+                            y: Math.max(0, Math.min(100 - prev.height, startCropY + deltaY))
+                          }))
+                        }
+                        
+                        const handleMouseUp = () => {
+                          document.removeEventListener("mousemove", handleMouseMove)
+                          document.removeEventListener("mouseup", handleMouseUp)
+                        }
+                        
+                        document.addEventListener("mousemove", handleMouseMove)
+                        document.addEventListener("mouseup", handleMouseUp)
                       }}
                     >
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -463,10 +501,22 @@ export function ImageToolLayout({
                       </div>
                       
                       {/* Resize handles */}
-                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-nw-resize"></div>
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-ne-resize"></div>
-                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-sw-resize"></div>
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-se-resize"></div>
+                      <div 
+                        className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-nw-resize"
+                        onMouseDown={(e) => this.handleResizeStart(e, 'nw')}
+                      ></div>
+                      <div 
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-ne-resize"
+                        onMouseDown={(e) => this.handleResizeStart(e, 'ne')}
+                      ></div>
+                      <div 
+                        className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-sw-resize"
+                        onMouseDown={(e) => this.handleResizeStart(e, 'sw')}
+                      ></div>
+                      <div 
+                        className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-se-resize"
+                        onMouseDown={(e) => this.handleResizeStart(e, 'se')}
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -625,7 +675,7 @@ export function ImageToolLayout({
 
             {/* Right Sidebar - Fixed Position (iLoveIMG Style) */}
             <div className="w-80 flex-shrink-0">
-              <div className="sticky top-8 space-y-6">
+              <div className="lg:sticky lg:top-8 space-y-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
                 {/* Crop Options for Crop Tool */}
                 {toolType === "crop" && (
                   <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -636,36 +686,60 @@ export function ImageToolLayout({
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">Width (px)</Label>
                         <Input
                           type="number"
-                          value={4878}
-                          readOnly
-                          className="w-full bg-gray-50"
+                          value={selectedFile?.metadata ? Math.floor((cropArea.width / 100) * selectedFile.metadata.width) : 4878}
+                          onChange={(e) => {
+                            const newWidth = parseInt(e.target.value) || 0
+                            if (selectedFile?.metadata) {
+                              const widthPercent = (newWidth / selectedFile.metadata.width) * 100
+                              setCropArea(prev => ({ ...prev, width: Math.min(100, Math.max(1, widthPercent)) }))
+                            }
+                          }}
+                          className="w-full"
                         />
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">Height (px)</Label>
                         <Input
                           type="number"
-                          value={3135}
-                          readOnly
-                          className="w-full bg-gray-50"
+                          value={selectedFile?.metadata ? Math.floor((cropArea.height / 100) * selectedFile.metadata.height) : 3135}
+                          onChange={(e) => {
+                            const newHeight = parseInt(e.target.value) || 0
+                            if (selectedFile?.metadata) {
+                              const heightPercent = (newHeight / selectedFile.metadata.height) * 100
+                              setCropArea(prev => ({ ...prev, height: Math.min(100, Math.max(1, heightPercent)) }))
+                            }
+                          }}
+                          className="w-full"
                         />
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">Position X (px)</Label>
                         <Input
                           type="number"
-                          value={610}
-                          readOnly
-                          className="w-full bg-gray-50"
+                          value={selectedFile?.metadata ? Math.floor((cropArea.x / 100) * selectedFile.metadata.width) : 610}
+                          onChange={(e) => {
+                            const newX = parseInt(e.target.value) || 0
+                            if (selectedFile?.metadata) {
+                              const xPercent = (newX / selectedFile.metadata.width) * 100
+                              setCropArea(prev => ({ ...prev, x: Math.min(100, Math.max(0, xPercent)) }))
+                            }
+                          }}
+                          className="w-full"
                         />
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">Position Y (px)</Label>
                         <Input
                           type="number"
-                          value={392}
-                          readOnly
-                          className="w-full bg-gray-50"
+                          value={selectedFile?.metadata ? Math.floor((cropArea.y / 100) * selectedFile.metadata.height) : 392}
+                          onChange={(e) => {
+                            const newY = parseInt(e.target.value) || 0
+                            if (selectedFile?.metadata) {
+                              const yPercent = (newY / selectedFile.metadata.height) * 100
+                              setCropArea(prev => ({ ...prev, y: Math.min(100, Math.max(0, yPercent)) }))
+                            }
+                          }}
+                          className="w-full"
                         />
                       </div>
                     </div>
@@ -779,20 +853,6 @@ export function ImageToolLayout({
                       Processing...
                     </>
                   ) : (
-                    <>
-                      <Play className="h-5 w-5 mr-2" />
-                      {toolType.charAt(0).toUpperCase() + toolType.slice(1)} IMAGE
-                    </>
-                  )}
-                </Button>
-
-                {/* Ad Space */}
-                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 text-center">
-                  <div className="text-xs text-gray-500 mb-2">Advertisement</div>
-                  <div className="bg-white border border-gray-300 rounded p-4 min-h-[250px] flex items-center justify-center">
-                    <span className="text-gray-400">300x250 Ad Space</span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
