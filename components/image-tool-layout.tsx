@@ -804,11 +804,11 @@ export function ImageToolLayout({
             </div>
 
             {/* Ad Space */}
-            <div className="p-4 border-t border-gray-200">
+           {/*  <div className="p-4 border-t border-gray-200">
               <div className="bg-gray-100 border border-gray-300 rounded p-4 text-center min-h-[250px] flex items-center justify-center">
                 <span className="text-gray-400 text-sm">300x250 Ad Space</span>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
