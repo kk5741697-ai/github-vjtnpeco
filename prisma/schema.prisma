@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  role            Role     @default(USER)
+  plan            Plan     @default(FREE)
+  stripeCustomerId String? @unique // Added Stripe customer ID
+  createdAt       DateTime @default(now())
+  lastLoginAt     DateTime?
+  twoFAEnabled    Boolean  @default(false)
+  
+  // Relations
+  subscriptions   Subscription[]
+  jobs            Job[]
+  usageDaily      UsageDaily[]
+  apiKeys         ApiKey[]
+  abTestAssignments AbTestAssignment[]
+  auditLogs       AuditLog[] @relation("ActorLogs")
+  
+  @@map("users")
+}
+
+model Domain {
+  id              String   @id @default(cuid())
+  host            String   @unique
+  name            String
+  themeJson       Json?
+  enabledTools    String[]
+  adsSettingsJson Json?
+  seoJson         Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  domainTools     DomainTool[]
+  jobs            Job[]
+  usageDaily      UsageDaily[]
+  abTestAssignments AbTestAssignment[]
+  
+  @@map("domains")
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  category    Category
+  metaJson    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  domainTools DomainTool[]
+  jobs        Job[]
+  
+  @@map("tools")
+}
+
+model DomainTool {
+  id        String  @id @default(cuid())
+  domainId  String
+  toolId    String
+  enabled   Boolean @default(true)
+  position  Int     @default(0)
+  
+  // Relations
+  domain    Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  tool      Tool   @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  
+  @@unique([domainId, toolId])
+  @@map("domain_tools")
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  userId      String?
+  domainId    String
+  toolId      String
+  status      JobStatus @default(PENDING)
+  mode        String?   // bulk, single, etc.
+  inputsJson  Json?
+  resultJson  Json?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  error       String?
+  
+  // Relations
+  user        User?   @relation(fields: [userId], references: [id])
+  domain      Domain  @relation(fields: [domainId], references: [id])
+  tool        Tool    @relation(fields: [toolId], references: [id])
+  
+  @@map("jobs")
+}
+
+model UsageDaily {
+  id            String   @id @default(cuid())
+  userId        String?
+  domainId      String
+  date          DateTime @db.Date
+  runs          Int      @default(0)
+  estBytesOut   BigInt   @default(0)
+  estBytesIn    BigInt   @default(0)
+  
+  // Relations
+  user          User?   @relation(fields: [userId], references: [id])
+  domain        Domain  @relation(fields: [domainId], references: [id])
+  
+  @@unique([userId, domainId, date])
+  @@map("usage_daily")
+}
+
+model Subscription {
+  id                String            @id @default(cuid())
+  userId            String
+  plan              Plan
+  status            SubscriptionStatus
+  provider          String            // stripe, paypal
+  providerId        String?           // external subscription ID
+  currentPeriodEnd  DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  keyHash     String   @unique
+  name        String?
+  scopes      String[]
+  rateLimit   Int      @default(1000) // requests per hour
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("api_keys")
+}
+
+model AbTestAssignment {
+  id        String  @id @default(cuid())
+  userId    String?
+  domainId  String
+  testName  String
+  variant   String
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User?   @relation(fields: [userId], references: [id])
+  domain    Domain  @relation(fields: [domainId], references: [id])
+  
+  @@unique([userId, domainId, testName])
+  @@map("ab_test_assignments")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  action      String
+  target      String
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  actor       User @relation("ActorLogs", fields: [actorId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+// Enums
+enum Role {
+  USER
+  MODERATOR
+  DOMAIN_ADMIN
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Plan {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum Category {
+  PDF
+  IMAGE
+  QR_BARCODE
+  CODE_DEV
+  SEO
+  NETWORK
+  UTILITIES
+  CONVERTERS
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  UNPAID
+  INCOMPLETE
+}
