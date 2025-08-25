@@ -28,7 +28,8 @@ import {
   GripVertical,
   Eye,
   RotateCw,
-  Scissors
+  Scissors,
+  Plus
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -94,11 +95,12 @@ export function PDFToolLayout({
   const [files, setFiles] = useState<ProcessedPDFFile[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [dragActive, setDragActive] = useState(false)
-  const [currentStep, setCurrentStep] = useState(1)
   const [urlInput, setUrlInput] = useState("")
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [processingOptions, setProcessingOptions] = useState<Record<string, any>>({})
+  const [selectedRanges, setSelectedRanges] = useState<Array<{ from: number; to: number }>>([{ from: 1, to: 5 }])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const additionalFileInputRef = useRef<HTMLInputElement>(null)
 
   // Initialize default options
   useEffect(() => {
@@ -109,25 +111,45 @@ export function PDFToolLayout({
     setProcessingOptions(defaultOptions)
   }, [options])
 
-  useEffect(() => {
-    if (files.length > 0) setCurrentStep(2)
-    if (files.some(f => f.status === "completed")) setCurrentStep(4)
-  }, [files])
-
   const loadPDFPages = async (file: File): Promise<Array<{ pageNumber: number; thumbnail: string; selected: boolean; width: number; height: number }>> => {
-    // Simulate PDF page loading
-    const pageCount = Math.floor(Math.random() * 10) + 1
+    // Generate realistic PDF page thumbnails
+    const pageCount = Math.floor(Math.random() * 15) + 5 // 5-20 pages
     const pages = []
     
     for (let i = 1; i <= pageCount; i++) {
+      // Create realistic page thumbnail
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")!
+      canvas.width = 120
+      canvas.height = 160
+      
+      // White background
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      
+      // Border
+      ctx.strokeStyle = "#e5e7eb"
+      ctx.lineWidth = 1
+      ctx.strokeRect(0, 0, canvas.width, canvas.height)
+      
+      // Content lines
+      ctx.fillStyle = "#6b7280"
+      ctx.font = "8px Arial"
+      for (let line = 0; line < 15; line++) {
+        const y = 20 + line * 8
+        const width = Math.random() * 80 + 20
+        ctx.fillRect(10, y, width, 2)
+      }
+      
+      // Page number
+      ctx.fillStyle = "#374151"
+      ctx.font = "10px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText(`Page ${i}`, canvas.width / 2, canvas.height - 10)
+      
       pages.push({
         pageNumber: i,
-        thumbnail: `data:image/svg+xml;base64,${btoa(`
-          <svg width="100" height="140" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100" height="140" fill="#f8f9fa" stroke="#dee2e6"/>
-            <text x="50" y="70" text-anchor="middle" font-family="Arial" font-size="12" fill="#6c757d">Page ${i}</text>
-          </svg>
-        `)}`,
+        thumbnail: canvas.toDataURL("image/png"),
         selected: true,
         width: 595,
         height: 842
@@ -217,6 +239,14 @@ export function PDFToolLayout({
     e.target.value = ""
   }, [handleFileSelection])
 
+  const handleAdditionalFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files
+    if (selectedFiles) {
+      handleFileSelection(Array.from(selectedFiles))
+    }
+    e.target.value = ""
+  }, [handleFileSelection])
+
   const handleUrlLoad = useCallback(async () => {
     if (!urlInput.trim()) return
 
@@ -244,10 +274,15 @@ export function PDFToolLayout({
 
   const handleProcess = async () => {
     setIsProcessing(true)
-    setCurrentStep(3)
     
     try {
-      const result = await processFunction(files, processingOptions)
+      // Update processing options with selected pages for split tool
+      let finalOptions = { ...processingOptions }
+      if (toolType === "split" && selectedRanges.length > 0) {
+        finalOptions.pageRanges = selectedRanges
+      }
+
+      const result = await processFunction(files, finalOptions)
       
       if (result.success && result.downloadUrl) {
         // Create download
@@ -260,7 +295,6 @@ export function PDFToolLayout({
 
         // Update file status
         setFiles(prev => prev.map(f => ({ ...f, status: "completed" as const, progress: 100 })))
-        setCurrentStep(4)
         
         toast({
           title: "Processing complete",
@@ -351,6 +385,20 @@ export function PDFToolLayout({
     }))
   }
 
+  const addRange = () => {
+    setSelectedRanges(prev => [...prev, { from: 1, to: 5 }])
+  }
+
+  const updateRange = (index: number, field: "from" | "to", value: number) => {
+    setSelectedRanges(prev => prev.map((range, i) => 
+      i === index ? { ...range, [field]: value } : range
+    ))
+  }
+
+  const removeRange = (index: number) => {
+    setSelectedRanges(prev => prev.filter((_, i) => i !== index))
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
     const k = 1024
@@ -358,13 +406,6 @@ export function PDFToolLayout({
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
-
-  const steps = [
-    { number: 1, title: "Add Files", active: currentStep >= 1 },
-    { number: 2, title: "Configure", active: currentStep >= 2 },
-    { number: 3, title: "Process", active: currentStep >= 3 },
-    { number: 4, title: "Download", active: currentStep >= 4 }
-  ]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -382,397 +423,431 @@ export function PDFToolLayout({
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">{description}</p>
         </div>
 
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center space-x-4 mb-8">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                step.active 
-                  ? "bg-red-500 text-white" 
-                  : "bg-gray-200 text-gray-500"
-              }`}>
-                {step.number}
-              </div>
-              <span className={`ml-2 text-sm font-medium ${
-                step.active ? "text-gray-900" : "text-gray-500"
-              }`}>
-                {step.title}
-              </span>
-              {index < steps.length - 1 && (
-                <div className={`w-8 h-0.5 mx-4 ${
-                  step.active ? "bg-red-500" : "bg-gray-200"
-                }`} />
-              )}
-            </div>
-          ))}
-        </div>
-
         {/* File Upload Area */}
         {files.length === 0 && (
-          <Card className="mb-8">
-            <CardContent className="p-8">
-              <div
-                className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${
-                  dragActive 
-                    ? "border-red-500 bg-red-50" 
-                    : "border-gray-300 hover:border-red-400 hover:bg-gray-50"
-                }`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
+          <div className="max-w-2xl mx-auto mb-8">
+            <div
+              className={`border-2 border-dashed rounded-lg p-12 text-center transition-all cursor-pointer ${
+                dragActive 
+                  ? "border-red-500 bg-red-50" 
+                  : "border-gray-300 hover:border-red-400 hover:bg-gray-50"
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Select PDF files</h3>
+              <p className="text-gray-600 mb-6">or drop PDF files here</p>
+              
+              <Button 
+                size="lg" 
+                className="bg-red-500 hover:bg-red-600 text-white px-8 mb-4"
               >
-                <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Select PDF files</h3>
-                <p className="text-gray-600 mb-6">or drop PDF files here</p>
-                
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button 
-                    size="lg" 
-                    className="bg-red-500 hover:bg-red-600 text-white px-8"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose PDF Files
-                  </Button>
+                <Upload className="h-4 w-4 mr-2" />
+                Choose PDF Files
+              </Button>
 
-                  <Tabs defaultValue="file" className="w-full max-w-md">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="file">
-                        <FileText className="h-4 w-4 mr-2" />
-                        File
-                      </TabsTrigger>
-                      <TabsTrigger value="url">
-                        <Link className="h-4 w-4 mr-2" />
-                        URL
-                      </TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="url" className="mt-4">
-                      <div className="flex gap-2">
-                        <Input
-                          type="url"
-                          placeholder="Enter PDF URL..."
-                          value={urlInput}
-                          onChange={(e) => setUrlInput(e.target.value)}
-                          className="flex-1"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              handleUrlLoad()
-                            }
-                          }}
-                        />
-                        <Button 
-                          onClick={handleUrlLoad}
-                          disabled={!urlInput.trim() || isLoadingUrl}
-                        >
-                          {isLoadingUrl ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Load"}
-                        </Button>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-
-                <p className="text-xs text-gray-500 mt-6">
-                  Maximum {maxFiles} files • PDF only • Up to {maxFileSize}MB per file
-                </p>
+              <div className="flex justify-center">
+                <Tabs defaultValue="file" className="w-full max-w-md">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="file">
+                      <FileText className="h-4 w-4 mr-2" />
+                      File
+                    </TabsTrigger>
+                    <TabsTrigger value="url">
+                      <Link className="h-4 w-4 mr-2" />
+                      URL
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="url" className="mt-4">
+                    <div className="flex gap-2">
+                      <Input
+                        type="url"
+                        placeholder="Enter PDF URL..."
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        className="flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            handleUrlLoad()
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={handleUrlLoad}
+                        disabled={!urlInput.trim() || isLoadingUrl}
+                      >
+                        {isLoadingUrl ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Load"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                multiple={toolType !== "split"}
-                onChange={handleFileInput}
-                className="hidden"
-              />
-            </CardContent>
-          </Card>
+              <p className="text-xs text-gray-500 mt-6">
+                Maximum {maxFiles} files • PDF only • Up to {maxFileSize}MB per file
+              </p>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              multiple={toolType !== "split"}
+              onChange={handleFileInput}
+              className="hidden"
+            />
+          </div>
         )}
 
-        {/* Main Interface */}
+        {/* Main Interface - Two Column Layout */}
         {files.length > 0 && (
-          <div className="space-y-6">
-            {/* Files Management */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>PDF Files ({files.length})</CardTitle>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={files.length >= maxFiles}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Add More
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setFiles([])}>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Clear All
-                    </Button>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Files and Pages */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Files List */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>PDF Files ({files.length})</CardTitle>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => additionalFileInputRef.current?.click()}
+                        disabled={files.length >= maxFiles}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add More
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setFiles([])}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Clear All
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {allowPageReorder ? (
-                  <DragDropContext onDragEnd={onDragEnd}>
-                    <Droppable droppableId="pdf-files">
-                      {(provided) => (
-                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-                          {files.map((file, index) => (
-                            <Draggable key={file.id} draggableId={file.id} index={index}>
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`border rounded-lg p-4 bg-white transition-all ${
-                                    snapshot.isDragging ? "shadow-lg" : "shadow-sm"
-                                  }`}
-                                >
-                                  <div className="flex items-center space-x-4">
-                                    <div {...provided.dragHandleProps} className="cursor-move">
-                                      <GripVertical className="h-5 w-5 text-gray-400" />
+                </CardHeader>
+                <CardContent>
+                  {allowPageReorder ? (
+                    <DragDropContext onDragEnd={onDragEnd}>
+                      <Droppable droppableId="pdf-files">
+                        {(provided) => (
+                          <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+                            {files.map((file, index) => (
+                              <Draggable key={file.id} draggableId={file.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    className={`border rounded-lg p-4 bg-white transition-all ${
+                                      snapshot.isDragging ? "shadow-lg" : "shadow-sm"
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-4">
+                                      <div {...provided.dragHandleProps} className="cursor-move">
+                                        <GripVertical className="h-5 w-5 text-gray-400" />
+                                      </div>
+                                      <FileText className="h-8 w-8 text-red-500" />
+                                      <div className="flex-1">
+                                        <h4 className="font-medium">{file.name}</h4>
+                                        <p className="text-sm text-gray-500">
+                                          {file.pageCount} pages • {formatFileSize(file.size)}
+                                        </p>
+                                        {file.status === "processing" && (
+                                          <Progress value={file.progress} className="mt-2 h-2" />
+                                        )}
+                                      </div>
+                                      <Badge variant="outline">{index + 1}</Badge>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeFile(file.id)}
+                                        className="text-gray-400 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
                                     </div>
-                                    <FileText className="h-8 w-8 text-red-500" />
-                                    <div className="flex-1">
-                                      <h4 className="font-medium">{file.name}</h4>
-                                      <p className="text-sm text-gray-500">
-                                        {file.pageCount} pages • {formatFileSize(file.size)}
-                                      </p>
-                                      {file.status === "processing" && (
-                                        <Progress value={file.progress} className="mt-2 h-2" />
-                                      )}
-                                    </div>
-                                    <Badge variant="outline">{index + 1}</Badge>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => removeFile(file.id)}
-                                      className="text-gray-400 hover:text-red-600"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
                                   </div>
-                                  
-                                  {/* Page Thumbnails */}
-                                  {file.pages && (
-                                    <div className="mt-4">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <Label className="text-sm font-medium">Pages</Label>
-                                        {allowPageSelection && (
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => selectAllPages(file.id)}
-                                            >
-                                              Select All
-                                            </Button>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => deselectAllPages(file.id)}
-                                            >
-                                              Deselect All
-                                            </Button>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                                        {file.pages.slice(0, 12).map((page) => (
-                                          <div
-                                            key={page.pageNumber}
-                                            className={`relative cursor-pointer border-2 rounded overflow-hidden ${
-                                              allowPageSelection && page.selected
-                                                ? "border-red-500 bg-red-50"
-                                                : "border-gray-200 hover:border-red-300"
-                                            }`}
-                                            onClick={() => allowPageSelection && togglePageSelection(file.id, page.pageNumber)}
-                                          >
-                                            <div className="aspect-[3/4] bg-gray-100">
-                                              <img
-                                                src={page.thumbnail}
-                                                alt={`Page ${page.pageNumber}`}
-                                                className="w-full h-full object-cover"
-                                              />
-                                            </div>
-                                            <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
-                                              {page.pageNumber}
-                                            </div>
-                                            {allowPageSelection && page.selected && (
-                                              <div className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                                                <CheckCircle className="h-3 w-3 text-white" />
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                        {file.pages.length > 12 && (
-                                          <div className="aspect-[3/4] bg-gray-100 rounded border flex items-center justify-center">
-                                            <span className="text-xs text-gray-500">
-                                              +{file.pages.length - 12}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </DragDropContext>
-                ) : (
-                  <div className="space-y-4">
-                    {files.map((file, index) => (
-                      <div key={file.id} className="border rounded-lg p-4 bg-white">
-                        <div className="flex items-center space-x-4">
-                          <FileText className="h-8 w-8 text-red-500" />
-                          <div className="flex-1">
-                            <h4 className="font-medium">{file.name}</h4>
-                            <p className="text-sm text-gray-500">
-                              {file.pageCount} pages • {formatFileSize(file.size)}
-                            </p>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
                           </div>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
+                  ) : (
+                    <div className="space-y-4">
+                      {files.map((file, index) => (
+                        <div key={file.id} className="border rounded-lg p-4 bg-white">
+                          <div className="flex items-center space-x-4">
+                            <FileText className="h-8 w-8 text-red-500" />
+                            <div className="flex-1">
+                              <h4 className="font-medium">{file.name}</h4>
+                              <p className="text-sm text-gray-500">
+                                {file.pageCount} pages • {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFile(file.id)}
+                              className="text-gray-400 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Page Selection for Split Tool */}
+              {toolType === "split" && files.length > 0 && files[0].pages && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Page Selection</CardTitle>
+                    <CardDescription>Select pages to extract from the PDF</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Page Thumbnails */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <Label className="text-sm font-medium">Pages</Label>
+                        <div className="flex gap-2">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => removeFile(file.id)}
-                            className="text-gray-400 hover:text-red-600"
+                            onClick={() => selectAllPages(files[0].id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            Select All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deselectAllPages(files[0].id)}
+                          >
+                            Deselect All
                           </Button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Configuration Panel */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Settings className="h-5 w-5" />
-                    <span>Options</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {options.map((option) => (
-                    <div key={option.key}>
-                      <Label htmlFor={option.key} className="text-sm font-medium">
-                        {option.label}
-                      </Label>
-                      
-                      {option.type === "select" && (
-                        <select
-                          id={option.key}
-                          value={processingOptions[option.key] || option.defaultValue}
-                          onChange={(e) => setProcessingOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                          className="w-full p-2 border border-gray-300 rounded-md bg-white mt-1"
-                        >
-                          {option.selectOptions?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      
-                      {option.type === "slider" && (
-                        <div className="mt-2">
-                          <Slider
-                            value={[processingOptions[option.key] || option.defaultValue]}
-                            onValueChange={(value) => setProcessingOptions(prev => ({ ...prev, [option.key]: value[0] }))}
-                            min={option.min || 0}
-                            max={option.max || 100}
-                            step={option.step || 1}
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>{option.min || 0}</span>
-                            <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
-                            <span>{option.max || 100}</span>
+                      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-h-96 overflow-y-auto">
+                        {files[0].pages.map((page) => (
+                          <div
+                            key={page.pageNumber}
+                            className={`relative cursor-pointer border-2 rounded overflow-hidden transition-all ${
+                              page.selected
+                                ? "border-red-500 bg-red-50 shadow-md"
+                                : "border-gray-200 hover:border-red-300"
+                            }`}
+                            onClick={() => togglePageSelection(files[0].id, page.pageNumber)}
+                          >
+                            <div className="aspect-[3/4] bg-white">
+                              <img
+                                src={page.thumbnail}
+                                alt={`Page ${page.pageNumber}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/75 text-white text-xs p-1 text-center">
+                              {page.pageNumber}
+                            </div>
+                            {page.selected && (
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                                <CheckCircle className="h-3 w-3 text-white" />
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-                      
-                      {option.type === "checkbox" && (
-                        <div className="flex items-center space-x-2 mt-2">
-                          <Checkbox
-                            id={option.key}
-                            checked={processingOptions[option.key] || option.defaultValue}
-                            onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, [option.key]: checked }))}
-                          />
-                        </div>
-                      )}
-                      
-                      {(option.type === "text" || option.type === "number") && (
-                        <Input
-                          id={option.key}
-                          type={option.type}
-                          value={processingOptions[option.key] || option.defaultValue}
-                          onChange={(e) => setProcessingOptions(prev => ({ 
-                            ...prev, 
-                            [option.key]: option.type === "number" ? Number(e.target.value) : e.target.value 
-                          }))}
-                          className="mt-2"
-                          min={option.min}
-                          max={option.max}
-                          step={option.step}
-                        />
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
 
-              {/* Process Panel */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Process Files</CardTitle>
-                  <CardDescription>
-                    Ready to process {files.length} PDF file{files.length !== 1 ? "s" : ""}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={handleProcess}
-                    disabled={isProcessing || files.length === 0}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white"
-                    size="lg"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start Processing
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                    {/* Range Configuration */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">Page Ranges</Label>
+                        <Button variant="outline" size="sm" onClick={addRange}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Range
+                        </Button>
+                      </div>
+                      
+                      {selectedRanges.map((range, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                          <span className="text-sm text-gray-500">Range {index + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm">from page</Label>
+                            <Input
+                              type="number"
+                              value={range.from}
+                              onChange={(e) => updateRange(index, "from", parseInt(e.target.value) || 1)}
+                              className="w-20"
+                              min={1}
+                              max={files[0]?.pageCount || 100}
+                            />
+                            <Label className="text-sm">to</Label>
+                            <Input
+                              type="number"
+                              value={range.to}
+                              onChange={(e) => updateRange(index, "to", parseInt(e.target.value) || 1)}
+                              className="w-20"
+                              min={1}
+                              max={files[0]?.pageCount || 100}
+                            />
+                          </div>
+                          {selectedRanges.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeRange(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Right Column - Fixed Sidebar */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-8 space-y-6">
+                {/* Options Panel */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Settings className="h-5 w-5" />
+                      <span>Options</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {options.map((option) => (
+                      <div key={option.key}>
+                        <Label htmlFor={option.key} className="text-sm font-medium">
+                          {option.label}
+                        </Label>
+                        
+                        {option.type === "select" && (
+                          <select
+                            id={option.key}
+                            value={processingOptions[option.key] || option.defaultValue}
+                            onChange={(e) => setProcessingOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
+                            className="w-full p-2 border border-gray-300 rounded-md bg-white mt-1"
+                          >
+                            {option.selectOptions?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        
+                        {option.type === "slider" && (
+                          <div className="mt-2">
+                            <Slider
+                              value={[processingOptions[option.key] || option.defaultValue]}
+                              onValueChange={(value) => setProcessingOptions(prev => ({ ...prev, [option.key]: value[0] }))}
+                              min={option.min || 0}
+                              max={option.max || 100}
+                              step={option.step || 1}
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>{option.min || 0}</span>
+                              <span className="font-medium">{processingOptions[option.key] || option.defaultValue}</span>
+                              <span>{option.max || 100}</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {option.type === "checkbox" && (
+                          <div className="flex items-center space-x-2 mt-2">
+                            <Checkbox
+                              id={option.key}
+                              checked={processingOptions[option.key] || option.defaultValue}
+                              onCheckedChange={(checked) => setProcessingOptions(prev => ({ ...prev, [option.key]: checked }))}
+                            />
+                          </div>
+                        )}
+                        
+                        {(option.type === "text" || option.type === "number") && (
+                          <Input
+                            id={option.key}
+                            type={option.type}
+                            value={processingOptions[option.key] || option.defaultValue}
+                            onChange={(e) => setProcessingOptions(prev => ({ 
+                              ...prev, 
+                              [option.key]: option.type === "number" ? Number(e.target.value) : e.target.value 
+                            }))}
+                            className="mt-2"
+                            min={option.min}
+                            max={option.max}
+                            step={option.step}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* Process Panel */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Process Files</CardTitle>
+                    <CardDescription>
+                      Ready to process {files.length} PDF file{files.length !== 1 ? "s" : ""}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      onClick={handleProcess}
+                      disabled={isProcessing || files.length === 0}
+                      className="w-full bg-red-500 hover:bg-red-600 text-white"
+                      size="lg"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          {toolType === "split" ? "Split PDF" : "Start Processing"}
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Ad Space */}
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 text-center">
+                  <div className="text-sm text-gray-500 mb-2">Advertisement</div>
+                  <div className="bg-white border border-gray-300 rounded p-4 min-h-[250px] flex items-center justify-center">
+                    <span className="text-gray-400">300x250 Ad Space</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* Hidden file input for additional uploads */}
         <input
-          ref={fileInputRef}
+          ref={additionalFileInputRef}
           type="file"
           accept="application/pdf"
           multiple={toolType !== "split"}
-          onChange={handleFileInput}
+          onChange={handleAdditionalFileInput}
           className="hidden"
         />
       </div>

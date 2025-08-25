@@ -27,7 +27,8 @@ import {
   Palette,
   CheckCircle,
   Globe,
-  MapPin
+  MapPin,
+  Settings
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 

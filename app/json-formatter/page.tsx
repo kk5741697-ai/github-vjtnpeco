@@ -20,8 +20,10 @@ import {
   Settings,
   Trash2,
   Eye,
-  Share2
+  Share2,
+  Heart
 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 export default function JSONFormatterPage() {
   const [input, setInput] = useState("")
@@ -52,6 +54,10 @@ export default function JSONFormatterPage() {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
+      toast({
+        title: "Copied to clipboard",
+        description: "Text has been copied successfully"
+      })
     } catch (error) {
       console.error("Failed to copy:", error)
     }
@@ -86,13 +92,18 @@ export default function JSONFormatterPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            <span className="text-2xl font-bold text-gray-900">Code</span>
+            <Heart className="h-6 w-6 text-teal-500 fill-teal-500" />
+            <span className="text-2xl font-bold text-gray-900">Beautify</span>
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">JSON to TOML Converter</h1>
           <div className="flex items-center justify-center space-x-4 mb-4">
             <Button variant="ghost" className="text-blue-600">
-              <FileText className="h-4 w-4 mr-2" />
+              <Heart className="h-4 w-4 mr-2" />
               Add to Fav
             </Button>
-            <Button className="bg-blue-500 hover:bg-blue-600 text-white">
+            <Button className="bg-teal-500 hover:bg-teal-600 text-white">
               New
             </Button>
             <Button variant="outline">
@@ -107,20 +118,20 @@ export default function JSONFormatterPage() {
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
                   <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm">
                     <RefreshCw className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(input)}>
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => downloadFile(input, "input.json")}>
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setInput("")}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm">
@@ -151,10 +162,10 @@ export default function JSONFormatterPage() {
                 className="min-h-[400px] font-mono text-sm resize-none border-0 focus:ring-0"
               />
               <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                <span>Ln: 1 Col: 0</span>
+                <span>Ln: {input.split('\n').length} Col: {input.length}</span>
                 <div className="flex space-x-4">
-                  <span>T</span>
-                  <span>T</span>
+                  <span>JSON</span>
+                  <span>UTF-8</span>
                 </div>
               </div>
             </CardContent>
@@ -164,14 +175,14 @@ export default function JSONFormatterPage() {
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
                   <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(output)}>
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => downloadFile(output, "output.toml")}>
                     <Download className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="sm">
@@ -197,21 +208,25 @@ export default function JSONFormatterPage() {
             </CardHeader>
             <CardContent>
               {error ? (
-                <div className="min-h-[400px] flex items-center justify-center text-red-500">
-                  {error}
+                <div className="min-h-[400px] flex items-center justify-center text-red-500 bg-red-50 rounded border">
+                  <div className="text-center">
+                    <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                    <p>{error}</p>
+                  </div>
                 </div>
               ) : (
                 <Textarea
                   value={output}
                   readOnly
+                  placeholder="Converted output will appear here..."
                   className="min-h-[400px] font-mono text-sm resize-none border-0 focus:ring-0"
                 />
               )}
               <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                <span>Ln: 1 Col: 0</span>
+                <span>Ln: {output.split('\n').length} Col: {output.length}</span>
                 <div className="flex space-x-4">
-                  <span>T</span>
-                  <span>T</span>
+                  <span>TOML</span>
+                  <span>UTF-8</span>
                 </div>
               </div>
             </CardContent>
