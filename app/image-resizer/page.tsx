@@ -2,7 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { Maximize } from "lucide-react"
-import { ImageProcessor } from "@/lib/image-processor"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const resizeOptions = [
   {
@@ -53,7 +53,7 @@ async function resizeImages(files: any[], options: any) {
   try {
     const processedFiles = await Promise.all(
       files.map(async (file) => {
-        const processedBlob = await ImageProcessor.resizeImage(file.originalFile, {
+        const processedBlob = await ImageProcessor.resizeImage(file.originalFile || file.file, {
           width: options.width,
           height: options.height,
           maintainAspectRatio: options.maintainAspectRatio,
@@ -67,7 +67,7 @@ async function resizeImages(files: any[], options: any) {
           ...file,
           processed: true,
           processedPreview: processedUrl,
-          size: processedBlob.size,
+          processedSize: processedBlob.size,
           blob: processedBlob
         }
       })

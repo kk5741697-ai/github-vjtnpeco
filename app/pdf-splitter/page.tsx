@@ -2,7 +2,7 @@
 
 import { PDFToolLayout } from "@/components/pdf-tool-layout"
 import { Scissors } from "lucide-react"
-import { PDFProcessor } from "@/lib/pdf-processor"
+import { PDFProcessor } from "@/lib/processors/pdf-processor"
 import JSZip from "jszip"
 
 const splitOptions = [
@@ -10,10 +10,10 @@ const splitOptions = [
     key: "splitMode",
     label: "Split Mode",
     type: "select" as const,
-    defaultValue: "range",
+    defaultValue: "pages",
     selectOptions: [
-      { value: "range", label: "Page Range" },
       { value: "pages", label: "Individual Pages" },
+      { value: "range", label: "Page Range" },
       { value: "size", label: "Equal Parts" },
     ],
   },
@@ -51,15 +51,41 @@ async function splitPDF(files: any[], options: any) {
     }
 
     const file = files[0]
-    const ranges = options.pageRanges || [{ from: 1, to: 5 }]
+    
+    // Handle different split modes
+    let ranges: Array<{ from: number; to: number }> = []
+    
+    if (options.splitMode === "pages") {
+      // Split into individual pages based on selected pages
+      const selectedPages = file.pages.filter((p: any) => p.selected).map((p: any) => p.pageNumber)
+      ranges = selectedPages.map((pageNum: number) => ({ from: pageNum, to: pageNum }))
+    } else if (options.splitMode === "range") {
+      ranges = options.pageRanges || [{ from: 1, to: file.pageCount }]
+    } else if (options.splitMode === "size") {
+      const parts = options.equalParts || 2
+      const pagesPerPart = Math.ceil(file.pageCount / parts)
+      ranges = Array.from({ length: parts }, (_, i) => ({
+        from: i * pagesPerPart + 1,
+        to: Math.min((i + 1) * pagesPerPart, file.pageCount)
+      }))
+    }
 
-    const splitResults = await PDFProcessor.splitPDF(file.originalFile, ranges)
+    if (ranges.length === 0) {
+      return {
+        success: false,
+        error: "No pages selected for splitting",
+      }
+    }
+
+    const splitResults = await PDFProcessor.splitPDF(file.originalFile || file.file, ranges)
 
     // Create ZIP with split PDFs
     const zip = new JSZip()
     splitResults.forEach((pdfBytes, index) => {
       const range = ranges[index]
-      const filename = `${file.name.replace(".pdf", "")}_pages_${range.from}-${range.to}.pdf`
+      const filename = range.from === range.to 
+        ? `${file.name.replace(".pdf", "")}_page_${range.from}.pdf`
+        : `${file.name.replace(".pdf", "")}_pages_${range.from}-${range.to}.pdf`
       zip.file(filename, pdfBytes)
     })
 

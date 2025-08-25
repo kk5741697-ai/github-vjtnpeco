@@ -2,7 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { Crop } from "lucide-react"
-import { ImageProcessor } from "@/lib/image-processor"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const cropOptions = [
   {
@@ -41,8 +41,8 @@ async function cropImages(files: any[], options: any) {
         
         const processedBlob = await ImageProcessor.cropImage(
           file.originalFile || file.file,
+          cropArea,
           {
-            cropArea,
             outputFormat: options.outputFormat,
             quality: options.quality,
             backgroundColor: options.backgroundColor
@@ -55,7 +55,7 @@ async function cropImages(files: any[], options: any) {
           ...file,
           processed: true,
           processedPreview: processedUrl,
-          size: processedBlob.size,
+          processedSize: processedBlob.size,
           blob: processedBlob
         }
       })

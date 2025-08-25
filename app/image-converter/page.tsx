@@ -2,6 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { RefreshCw } from "lucide-react"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const convertOptions = [
   {
@@ -48,31 +49,50 @@ const convertOptions = [
 ]
 
 async function convertImages(files: any[], options: any) {
-  // Simulate image conversion process
-  return new Promise<{ success: boolean; processedFiles?: any[]; error?: string }>((resolve) => {
-    setTimeout(() => {
-      if (files.length === 0) {
-        resolve({
-          success: false,
-          error: "No files to process",
-        })
-        return
+  try {
+    if (files.length === 0) {
+      return {
+        success: false,
+        error: "No files to process",
       }
+    }
 
-      // Simulate successful conversion
-      const processedFiles = files.map((file) => ({
-        ...file,
-        processed: true,
-        processedPreview: file.preview,
-        name: `${file.name.split(".")[0]}.${options.outputFormat}`,
-      }))
+    const processedFiles = await Promise.all(
+      files.map(async (file) => {
+        const processedBlob = await ImageProcessor.convertFormat(
+          file.originalFile || file.file,
+          options.outputFormat,
+          {
+            quality: options.quality,
+            backgroundColor: options.backgroundColor,
+            preserveTransparency: options.preserveTransparency
+          }
+        )
 
-      resolve({
-        success: true,
-        processedFiles,
+        const processedUrl = URL.createObjectURL(processedBlob)
+        const newName = `${file.name.split(".")[0]}.${options.outputFormat}`
+
+        return {
+          ...file,
+          processed: true,
+          processedPreview: processedUrl,
+          name: newName,
+          processedSize: processedBlob.size,
+          blob: processedBlob
+        }
       })
-    }, 1500)
-  })
+    )
+
+    return {
+      success: true,
+      processedFiles,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to convert images",
+    }
+  }
 }
 
 export default function ImageConverterPage() {

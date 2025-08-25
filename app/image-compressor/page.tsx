@@ -2,7 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { Archive } from "lucide-react"
-import { ImageProcessor } from "@/lib/image-processor"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const compressOptions = [
   {
@@ -49,7 +49,7 @@ async function compressImages(files: any[], options: any) {
   try {
     const processedFiles = await Promise.all(
       files.map(async (file) => {
-        const processedBlob = await ImageProcessor.compressImage(file.originalFile, {
+        const processedBlob = await ImageProcessor.compressImage(file.originalFile || file.file, {
           quality: options.quality,
           compressionLevel: options.compressionLevel,
           outputFormat: options.outputFormat
@@ -61,7 +61,7 @@ async function compressImages(files: any[], options: any) {
           ...file,
           processed: true,
           processedPreview: processedUrl,
-          size: processedBlob.size,
+          processedSize: processedBlob.size,
           blob: processedBlob
         }
       })
