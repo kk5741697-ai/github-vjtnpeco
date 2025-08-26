@@ -1,0 +1,9 @@
+also must be note this, don't create unnecessary files, update the current files, if needed to create files then only create new file, else don't mash up things/codebase. if has duplicate file remove them
+
+Make operations simple, essential, and frustration-free.
+
+No duplicate or irrelevant options → only show what’s needed for the tool context.
+
+Keep UI consistent and intuitive: both beginners and professionals should complete tasks without tutorials.
+
+Preview canvas & sidebar should be scalable and reusable for 2000+ tools.
