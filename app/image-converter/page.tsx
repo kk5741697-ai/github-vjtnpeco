@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/simple-image-tool-layout"
+import { SimpleImageToolLayout } from "@/components/simple-image-tool-layout"
 import { RefreshCw } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
