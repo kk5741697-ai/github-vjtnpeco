@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { EnhancedAdBanner } from "@/components/ads/enhanced-ad-banner"
 import { 
   Upload, 
   Download, 
@@ -38,7 +38,12 @@ import {
   Redo2,
   Target,
   MousePointer,
-  Hand
+  Hand,
+  FileImage,
+  Layers,
+  AlertTriangle,
+  Info,
+  Lightbulb
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -460,36 +465,37 @@ export function EnhancedPDFToolLayout({
       {/* Left Canvas - Enhanced PDF Preview */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
         {/* Enhanced Canvas Header */}
-        <div className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center space-x-4">
+        <div className="bg-white border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between shadow-sm flex-shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="hover:bg-gray-100">
+              <Button variant="ghost" size="sm" className="hover:bg-gray-100 flex-shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg bg-red-50">
-                <Icon className="h-5 w-5 text-red-600" />
+            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-red-50 flex-shrink-0">
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
               </div>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-                <p className="text-sm text-gray-500">{description}</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">{title}</h1>
+                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block truncate">{description}</p>
               </div>
             </div>
             {singleFileOnly && files.length > 0 && (
-              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 hidden sm:inline-flex">
                 Single file only
               </Badge>
             )}
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
             {/* Undo/Redo */}
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleUndo}
               disabled={undoStack.length === 0}
+              className="hidden sm:inline-flex"
             >
               <Undo2 className="h-4 w-4" />
             </Button>
@@ -498,25 +504,28 @@ export function EnhancedPDFToolLayout({
               size="sm" 
               onClick={handleRedo}
               disabled={redoStack.length === 0}
+              className="hidden sm:inline-flex"
             >
               <Redo2 className="h-4 w-4" />
             </Button>
             
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
             
             {/* Zoom Controls */}
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.max(50, prev - 25))}>
+            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.max(50, prev - 25))} className="hidden sm:inline-flex">
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-gray-600 min-w-[60px] text-center font-mono">{zoom}%</span>
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.min(200, prev + 25))}>
+            <span className="text-sm text-gray-600 min-w-[50px] text-center font-mono hidden sm:inline">
+              {zoom}%
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.min(200, prev + 25))} className="hidden sm:inline-flex">
               <ZoomIn className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setZoom(100)}>
+            <Button variant="outline" size="sm" onClick={() => setZoom(100)} className="hidden sm:inline-flex">
               <Target className="h-4 w-4" />
             </Button>
             
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
             
             {/* View Mode */}
             <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
@@ -524,7 +533,7 @@ export function EnhancedPDFToolLayout({
                 variant={viewMode === "grid" ? "default" : "ghost"} 
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="h-8 px-3"
+                className="h-7 px-2 sm:px-3"
               >
                 <Grid className="h-3 w-3" />
               </Button>
@@ -532,7 +541,7 @@ export function EnhancedPDFToolLayout({
                 variant={viewMode === "list" ? "default" : "ghost"} 
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className="h-8 px-3"
+                className="h-7 px-2 sm:px-3"
               >
                 <List className="h-3 w-3" />
               </Button>
@@ -543,9 +552,10 @@ export function EnhancedPDFToolLayout({
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={singleFileOnly && files.length >= 1}
+              className="flex-shrink-0"
             >
               <Plus className="h-4 w-4 mr-1" />
-              Add
+              <span className="hidden sm:inline">Add</span>
             </Button>
           </div>
         </div>
@@ -555,7 +565,7 @@ export function EnhancedPDFToolLayout({
           {files.length === 0 ? (
             <div className="h-full flex items-center justify-center p-8">
               <div 
-                className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-red-400 hover:bg-red-50/50 transition-all duration-200 p-12"
+                className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-red-400 hover:bg-red-50/50 transition-all duration-200 p-8 sm:p-12"
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onClick={() => fileInputRef.current?.click()}
@@ -577,32 +587,32 @@ export function EnhancedPDFToolLayout({
               </div>
             </div>
           ) : (
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-6">
               <DragDropContext onDragEnd={() => {}}>
                 {(selectedFile ? [selectedFile] : files).map((file) => (
                   <div key={file.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     {/* Enhanced File Header */}
-                    <div className="px-6 py-4 border-b bg-gray-50">
+                    <div className="px-4 sm:px-6 py-4 border-b bg-gray-50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="p-2 rounded-lg bg-red-100">
-                            <FileText className="h-5 w-5 text-red-600" />
+                            <FileImage className="h-5 w-5 text-red-600" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <h3 className="font-semibold text-gray-900">{file.name}</h3>
                             <p className="text-sm text-gray-500">
                               {file.pageCount} pages • {formatFileSize(file.size)}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-shrink-0">
                           {allowPageSelection && (
                             <>
                               <Button 
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => selectAllPages(file.id)}
-                                className="hover:bg-gray-100"
+                                className="hover:bg-gray-100 hidden sm:inline-flex"
                               >
                                 Select All
                               </Button>
@@ -610,7 +620,7 @@ export function EnhancedPDFToolLayout({
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => deselectAllPages(file.id)}
-                                className="hover:bg-gray-100"
+                                className="hover:bg-gray-100 hidden sm:inline-flex"
                               >
                                 Clear
                               </Button>
@@ -634,11 +644,11 @@ export function EnhancedPDFToolLayout({
                         <div 
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          className="p-6"
+                          className="p-4 sm:p-6"
                         >
                           <div className={`grid gap-4 ${
                             viewMode === "grid" 
-                              ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" 
+                              ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" 
                               : "grid-cols-1"
                           }`}>
                             {file.pages.map((page, pageIndex) => (
@@ -666,25 +676,33 @@ export function EnhancedPDFToolLayout({
                                       onClick={() => allowPageSelection && togglePageSelection(file.id, page.pageNumber)}
                                     >
                                       {/* Enhanced Page Thumbnail */}
-                                      <div className="aspect-[3/4] bg-white relative overflow-hidden">
+                                      <div className="aspect-[3/4] bg-white relative overflow-hidden rounded-lg">
                                         <img 
                                           src={page.thumbnail}
                                           alt={`Page ${page.pageNumber}`}
-                                          className="w-full h-full object-contain transition-transform duration-200"
+                                          className="w-full h-full object-contain transition-transform duration-200 rounded-lg"
                                           style={{ transform: `scale(${zoom / 100})` }}
                                         />
                                         
                                         {/* Enhanced Hover Actions */}
-                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-5 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <div className="flex space-x-1">
-                                            <Button size="sm" variant="secondary" className="h-7 w-7 p-0 bg-white/90 shadow-sm">
+                                            <Button size="sm" variant="secondary" className="h-7 w-7 p-0 bg-white/90 hover:bg-white shadow-sm">
                                               <Eye className="h-3 w-3" />
                                             </Button>
-                                            <Button size="sm" variant="secondary" className="h-7 w-7 p-0 bg-white/90 shadow-sm">
+                                            <Button size="sm" variant="secondary" className="h-7 w-7 p-0 bg-white/90 hover:bg-white shadow-sm">
                                               <RotateCw className="h-3 w-3" />
                                             </Button>
-                                            <Button size="sm" variant="secondary" className="h-7 w-7 p-0 bg-white/90 shadow-sm">
-                                              <Maximize2 className="h-3 w-3" />
+                                            <Button 
+                                              size="sm" 
+                                              variant="secondary" 
+                                              className="h-7 w-7 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                // Handle page removal or other action
+                                              }}
+                                            >
+                                              <Trash2 className="h-3 w-3 text-red-600" />
                                             </Button>
                                           </div>
                                         </div>
@@ -741,7 +759,7 @@ export function EnhancedPDFToolLayout({
       </div>
 
       {/* Enhanced Right Sidebar */}
-      <div className="w-80 bg-white border-l shadow-lg flex flex-col overflow-hidden">
+      <div className="w-80 bg-white border-l shadow-lg flex flex-col overflow-hidden hidden lg:flex">
         {/* Sidebar Header */}
         <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
           <div className="flex items-center space-x-3">
@@ -762,7 +780,10 @@ export function EnhancedPDFToolLayout({
             {files.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">Files ({files.length})</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                    <Layers className="h-4 w-4 mr-2" />
+                    Files ({files.length})
+                  </h3>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -774,7 +795,7 @@ export function EnhancedPDFToolLayout({
                   </Button>
                 </div>
                 
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {files.map((file) => (
                     <div 
                       key={file.id}
@@ -783,27 +804,55 @@ export function EnhancedPDFToolLayout({
                       }`}
                       onClick={() => setSelectedFileId(file.id)}
                     >
-                      <div className="w-8 h-10 rounded bg-red-100 flex-shrink-0 flex items-center justify-center">
-                        <FileText className="h-4 w-4 text-red-600" />
+                      <div className="w-10 h-12 rounded bg-red-100 flex-shrink-0 flex items-center justify-center">
+                        <FileImage className="h-5 w-5 text-red-600" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
                         <p className="text-xs text-gray-500">{file.pageCount} pages • {formatFileSize(file.size)}</p>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeFile(file.id)
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Replace file functionality
+                          }}
+                          title="Replace"
+                        >
+                          <RotateCw className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeFile(file.id)
+                          }}
+                          title="Remove"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Single File Warning */}
+            {singleFileOnly && files.length > 1 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-800">Multiple files detected</span>
+                </div>
+                <p className="text-sm text-yellow-700">
+                  This tool only processes one file at a time. Only the selected file will be processed.
+                </p>
               </div>
             )}
 
@@ -829,7 +878,13 @@ export function EnhancedPDFToolLayout({
               >
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-gray-50">
-                    <h3 className="text-sm font-semibold text-gray-900">{sectionName}</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                      {sectionName === "General" && <Settings className="h-4 w-4 mr-2" />}
+                      {sectionName === "Security" && <Shield className="h-4 w-4 mr-2" />}
+                      {sectionName === "Output" && <Download className="h-4 w-4 mr-2" />}
+                      {!["General", "Security", "Output"].includes(sectionName) && <Sliders className="h-4 w-4 mr-2" />}
+                      {sectionName}
+                    </h3>
                     {collapsedSections.has(sectionName) ? 
                       <ChevronDown className="h-4 w-4" /> : 
                       <ChevronUp className="h-4 w-4" />
@@ -843,13 +898,13 @@ export function EnhancedPDFToolLayout({
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">{option.label}</Label>
                         {option.description && (
-                          <div className="text-xs text-gray-500" title={option.description}>
+                          <div className="text-xs text-gray-500 bg-gray-100 rounded-full w-4 h-4 flex items-center justify-center cursor-help" title={option.description}>
                             ?
                           </div>
                         )}
                       </div>
                       
-                      {/* Same option rendering as image tool */}
+                      {/* Enhanced Option Rendering */}
                       {option.type === "select" && (
                         <Select
                           value={toolOptions[option.key]?.toString()}
@@ -906,10 +961,42 @@ export function EnhancedPDFToolLayout({
                         />
                       )}
                     </div>
+                      {option.type === "number" && (
+                        <Input
+                          type="number"
+                          value={toolOptions[option.key] || option.defaultValue}
+                          onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: parseInt(e.target.value) || option.defaultValue }))}
+                          min={option.min}
+                          max={option.max}
+                          className="h-9"
+                        />
+                      )}
+
+                      {option.type === "color" && (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={toolOptions[option.key] || option.defaultValue}
+                            onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
+                            className="w-12 h-9 border border-gray-300 rounded cursor-pointer"
+                          />
+                          <Input
+                            value={toolOptions[option.key] || option.defaultValue}
+                            onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
+                            placeholder="#000000"
+                            className="flex-1 h-9"
+                          />
+                        </div>
+                      )}
                   ))}
                 </CollapsibleContent>
               </Collapsible>
             ))}
+
+            {/* Ad Space */}
+            <div className="py-4">
+              <EnhancedAdBanner position="sidebar" showLabel />
+            </div>
           </div>
         </div>
 
@@ -979,6 +1066,13 @@ export function EnhancedPDFToolLayout({
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Mobile Sidebar */}
+      <div className="lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50 hidden" id="mobile-sidebar-overlay">
+        <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-xl">
+          {/* Mobile sidebar content would go here */}
         </div>
       </div>
 

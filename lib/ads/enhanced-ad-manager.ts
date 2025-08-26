@@ -50,7 +50,7 @@ class EnhancedAdManager {
 
     // In development, skip actual GPT loading
     if (this.isDevelopment) {
-      console.log("🚧 Ad Manager: Development mode - using fallbacks")
+      console.log("🚧 Ad Manager: Development mode - ads disabled")
       this.isInitialized = true
       return
     }
@@ -60,7 +60,7 @@ class EnhancedAdManager {
       await this.configureGPT()
       this.isInitialized = true
     } catch (error) {
-      console.warn("Ad Manager initialization failed, using fallbacks:", error)
+      console.warn("Ad Manager initialization failed, ads disabled:", error)
       this.isInitialized = true // Still mark as initialized to prevent retries
     }
   }
@@ -144,7 +144,7 @@ class EnhancedAdManager {
     this.consentGiven = hasConsent
     
     if (this.isDevelopment) {
-      console.log(`🚧 Ad Manager: Consent ${hasConsent ? "granted" : "denied"} (dev mode)`)
+      // Silent in development
       return
     }
 
@@ -161,7 +161,6 @@ class EnhancedAdManager {
 
   defineSlot(adSlot: AdSlot): void {
     if (!this.config) {
-      console.warn("AdManager not initialized")
       return
     }
 
@@ -172,7 +171,6 @@ class EnhancedAdManager {
     }
 
     if (typeof window === "undefined" || !window.googletag) {
-      console.warn("GPT not available for slot definition")
       return
     }
 
@@ -210,7 +208,6 @@ class EnhancedAdManager {
   displaySlot(slotId: string): void {
     // In development, just log
     if (this.isDevelopment) {
-      console.log(`🚧 Ad Manager: Would display slot ${slotId} (dev mode)`)
       return
     }
 
@@ -232,7 +229,6 @@ class EnhancedAdManager {
     if (!slot) return
 
     if (this.isDevelopment) {
-      console.log(`🚧 Ad Manager: Would refresh slot ${slotId} (dev mode)`)
       return
     }
 
@@ -299,7 +295,6 @@ class EnhancedAdManager {
     if (!slot) return
 
     if (this.isDevelopment) {
-      console.log(`🚧 Ad Manager: Would destroy slot ${slotId} (dev mode)`)
       this.slots.delete(slotId)
       this.clearAutoRefresh(slotId)
       this.impressionCounts.delete(slotId)

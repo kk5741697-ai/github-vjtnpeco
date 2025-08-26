@@ -34,10 +34,9 @@ export function EnhancedAdSlot({
       try {
         // In development, simulate ad loading
         if (isDevelopment) {
-          setTimeout(() => {
-            setIsLoaded(true)
-            onLoad?.()
-          }, 500)
+          // Silent loading in development
+          setIsLoaded(true)
+          onLoad?.()
           return
         }
 
@@ -48,7 +47,7 @@ export function EnhancedAdSlot({
         setIsLoaded(true)
         onLoad?.()
       } catch (error) {
-        console.warn(`Failed to load ad slot ${slot.id}:`, error)
+        // Silent error handling in development
         setHasError(true)
         onError?.(error as Error)
       }
@@ -73,12 +72,8 @@ export function EnhancedAdSlot({
   // Development fallback
   if (isDevelopment) {
     const defaultFallback = (
-      <div className="bg-gradient-to-br from-gray-100 to-gray-200 border border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-500 text-sm p-4 min-h-[90px]">
-        <div className="text-center">
-          {showLabel && <div className="text-xs text-gray-400 mb-1">Advertisement</div>}
-          <div className="font-medium">Ad Space</div>
-          <div className="text-xs text-gray-400">{slot.name}</div>
-        </div>
+      <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm p-4 min-h-[90px] opacity-50">
+        {showLabel && <div className="text-xs">Advertisement</div>}
       </div>
     )
 
@@ -101,7 +96,7 @@ export function EnhancedAdSlot({
       )}
     >
       {showLabel && (
-        <div className="text-xs text-gray-400 text-center mb-2">Advertisement</div>
+        <div className="text-xs text-gray-400 text-center mb-1 opacity-70">Advertisement</div>
       )}
       
       <div
@@ -119,8 +114,8 @@ export function EnhancedAdSlot({
       />
       
       {!isLoaded && !isDevelopment && (
-        <div className="flex items-center justify-center h-full text-gray-400 text-sm animate-pulse">
-          Loading ad...
+        <div className="flex items-center justify-center h-full text-gray-300 text-xs">
+          <div className="animate-pulse">Loading...</div>
         </div>
       )}
     </div>

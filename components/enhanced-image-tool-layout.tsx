@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { EnhancedAdBanner } from "@/components/ads/enhanced-ad-banner"
 import { 
   Upload, 
   Download, 
@@ -20,29 +21,34 @@ import {
   ZoomIn, 
   ZoomOut, 
   Eye,
-  Crop,
-  Maximize,
-  RefreshCw,
+  Plus,
   X,
+  CheckCircle,
+  ArrowLeft,
+  Grid,
+  List,
+  Settings,
+  Maximize2,
   ChevronDown,
   ChevronUp,
-  ArrowLeft,
-  Plus,
-  Grid,
-  Maximize2,
-  FlipHorizontal,
-  FlipVertical,
   Move,
-  Square,
-  Circle,
   Undo2,
   Redo2,
-  Settings,
-  Palette,
-  Layers,
+  Target,
   MousePointer,
   Hand,
-  Target
+  Crop,
+  RotateCcw,
+  FlipHorizontal,
+  FlipVertical,
+  Square,
+  Circle,
+  Layers,
+  Palette,
+  Sliders,
+  Info,
+  AlertTriangle,
+  Lightbulb
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -62,13 +68,19 @@ interface ImageFile {
   blob?: Blob
   cropArea?: { x: number; y: number; width: number; height: number }
   rotation?: number
-  transforms?: any[]
+  transform?: {
+    zoom: number
+    pan: { x: number; y: number }
+    rotation: number
+    flipH: boolean
+    flipV: boolean
+  }
 }
 
 interface ToolOption {
   key: string
   label: string
-  type: "text" | "number" | "select" | "checkbox" | "slider" | "color" | "file"
+  type: "text" | "number" | "select" | "checkbox" | "slider" | "color"
   defaultValue: any
   min?: number
   max?: number
@@ -83,7 +95,7 @@ interface EnhancedImageToolLayoutProps {
   title: string
   description: string
   icon: any
-  toolType: "resize" | "compress" | "convert" | "crop" | "rotate" | "watermark" | "background" | "filter"
+  toolType: "resize" | "compress" | "convert" | "crop" | "rotate" | "watermark" | "background"
   processFunction: (files: ImageFile[], options: any) => Promise<{ success: boolean; processedFiles?: ImageFile[]; error?: string }>
   options: ToolOption[]
   maxFiles?: number
@@ -113,21 +125,15 @@ export function EnhancedImageToolLayout({
   const [zoom, setZoom] = useState(100)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"grid" | "single" | "comparison">("grid")
-  const [cropMode, setCropMode] = useState(false)
   const [cropSelection, setCropSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [undoStack, setUndoStack] = useState<any[]>([])
   const [redoStack, setRedoStack] = useState<any[]>([])
-  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
-  const [tool, setTool] = useState<"select" | "crop" | "pan">("select")
-  const [aspectRatio, setAspectRatio] = useState<string>("free")
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
-  
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   // Initialize options with defaults
   useEffect(() => {
@@ -150,68 +156,6 @@ export function EnhancedImageToolLayout({
     }
   }, [])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case "z":
-            e.preventDefault()
-            if (e.shiftKey) {
-              handleRedo()
-            } else {
-              handleUndo()
-            }
-            break
-          case "=":
-          case "+":
-            e.preventDefault()
-            setZoom(prev => Math.min(400, prev + 25))
-            break
-          case "-":
-            e.preventDefault()
-            setZoom(prev => Math.max(25, prev - 25))
-            break
-          case "0":
-            e.preventDefault()
-            setZoom(100)
-            setPanPosition({ x: 0, y: 0 })
-            break
-        }
-      } else {
-        switch (e.key) {
-          case "Delete":
-          case "Backspace":
-            if (selectedFile) {
-              e.preventDefault()
-              removeFile(selectedFile)
-            }
-            break
-          case "c":
-            if (!e.ctrlKey && !e.metaKey) {
-              setTool("crop")
-              setCropMode(true)
-            }
-            break
-          case "v":
-            if (!e.ctrlKey && !e.metaKey) {
-              setTool("select")
-              setCropMode(false)
-            }
-            break
-          case "h":
-            if (!e.ctrlKey && !e.metaKey) {
-              setTool("pan")
-            }
-            break
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [selectedFile, undoStack, redoStack])
-
   const handleFileUpload = async (uploadedFiles: FileList | null) => {
     if (!uploadedFiles) return
 
@@ -219,33 +163,29 @@ export function EnhancedImageToolLayout({
     if (singleFileOnly && (files.length > 0 || uploadedFiles.length > 1)) {
       toast({
         title: "Single file only",
-        description: `${title} only supports one file at a time. Please remove existing files first.`,
+        description: `${title} only supports one image at a time.`,
         variant: "destructive"
       })
       return
     }
 
     const newFiles: ImageFile[] = []
+    let hasLargeFiles = false
     
     for (let i = 0; i < uploadedFiles.length && i < maxFiles; i++) {
       const file = uploadedFiles[i]
       if (!supportedFormats.includes(file.type)) {
         toast({
           title: "Unsupported format",
-          description: `${file.name} is not supported. Supported formats: ${supportedFormats.map(f => f.split("/")[1].toUpperCase()).join(", ")}`,
+          description: `${file.name} format is not supported`,
           variant: "destructive"
         })
         continue
       }
 
-      // Check file size (100MB limit for free users)
-      if (file.size > 100 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: `${file.name} exceeds 100MB limit. Upgrade to Pro for larger files.`,
-          variant: "destructive"
-        })
-        continue
+      // Check file size and suggest optimization
+      if (file.size > 50 * 1024 * 1024) { // 50MB
+        hasLargeFiles = true
       }
 
       try {
@@ -261,7 +201,13 @@ export function EnhancedImageToolLayout({
           preview,
           dimensions,
           rotation: 0,
-          transforms: []
+          transform: {
+            zoom: 100,
+            pan: { x: 0, y: 0 },
+            rotation: 0,
+            flipH: false,
+            flipV: false
+          }
         }
 
         newFiles.push(imageFile)
@@ -276,15 +222,19 @@ export function EnhancedImageToolLayout({
 
     setFiles(prev => [...prev, ...newFiles])
     
-    // Auto-select first file and switch to single view for single-file tools
-    if (newFiles.length > 0) {
+    // Auto-select first file for single view
+    if (newFiles.length > 0 && !selectedFile) {
       setSelectedFile(newFiles[0].id)
-      if (singleFileOnly || toolType === "crop" || toolType === "background") {
+      if (singleFileOnly || toolType === "crop") {
         setViewMode("single")
       }
     }
 
-    // Save state for undo
+    // Show suggestions for large files
+    if (hasLargeFiles) {
+      setShowSuggestions(true)
+    }
+
     saveState()
   }
 
@@ -306,6 +256,55 @@ export function EnhancedImageToolLayout({
     })
   }
 
+  const saveState = () => {
+    const state = {
+      files: files.map(f => ({ ...f })),
+      toolOptions: { ...toolOptions },
+      selectedFile,
+      timestamp: Date.now()
+    }
+    setUndoStack(prev => [...prev.slice(-19), state])
+    setRedoStack([])
+  }
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return
+    
+    const currentState = {
+      files: files.map(f => ({ ...f })),
+      toolOptions: { ...toolOptions },
+      selectedFile,
+      timestamp: Date.now()
+    }
+    
+    const previousState = undoStack[undoStack.length - 1]
+    setRedoStack(prev => [...prev, currentState])
+    setUndoStack(prev => prev.slice(0, -1))
+    
+    setFiles(previousState.files)
+    setToolOptions(previousState.toolOptions)
+    setSelectedFile(previousState.selectedFile)
+  }
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return
+    
+    const currentState = {
+      files: files.map(f => ({ ...f })),
+      toolOptions: { ...toolOptions },
+      selectedFile,
+      timestamp: Date.now()
+    }
+    
+    const nextState = redoStack[redoStack.length - 1]
+    setUndoStack(prev => [...prev, currentState])
+    setRedoStack(prev => prev.slice(0, -1))
+    
+    setFiles(nextState.files)
+    setToolOptions(nextState.toolOptions)
+    setSelectedFile(nextState.selectedFile)
+  }
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     handleFileUpload(e.dataTransfer.files)
@@ -325,48 +324,105 @@ export function EnhancedImageToolLayout({
     saveState()
   }
 
-  const saveState = () => {
-    const state = {
-      files: files.map(f => ({ ...f })),
-      toolOptions: { ...toolOptions },
-      timestamp: Date.now()
+  const replaceFile = async (fileId: string) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = supportedFormats.join(",")
+    input.onchange = async (e) => {
+      const newFile = (e.target as HTMLInputElement).files?.[0]
+      if (newFile) {
+        try {
+          const preview = await createImagePreview(newFile)
+          const dimensions = await getImageDimensions(newFile)
+          
+          setFiles(prev => prev.map(f => f.id === fileId ? {
+            ...f,
+            file: newFile,
+            originalFile: newFile,
+            name: newFile.name,
+            size: newFile.size,
+            preview,
+            dimensions,
+            processed: false,
+            processedPreview: undefined,
+            blob: undefined
+          } : f))
+          
+          saveState()
+        } catch (error) {
+          toast({
+            title: "Error loading image",
+            description: "Failed to load the new image",
+            variant: "destructive"
+          })
+        }
+      }
     }
-    setUndoStack(prev => [...prev.slice(-19), state])
-    setRedoStack([])
+    input.click()
   }
 
-  const handleUndo = () => {
-    if (undoStack.length === 0) return
+  const handleCropStart = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (toolType !== "crop") return
     
-    const currentState = {
-      files: files.map(f => ({ ...f })),
-      toolOptions: { ...toolOptions },
-      timestamp: Date.now()
-    }
+    const canvas = e.currentTarget
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
     
-    const previousState = undoStack[undoStack.length - 1]
-    setRedoStack(prev => [...prev, currentState])
-    setUndoStack(prev => prev.slice(0, -1))
-    
-    setFiles(previousState.files)
-    setToolOptions(previousState.toolOptions)
+    setDragStart({ x, y })
+    setIsDragging(true)
+    setCropSelection({ x, y, width: 0, height: 0 })
   }
 
-  const handleRedo = () => {
-    if (redoStack.length === 0) return
+  const handleCropMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (toolType !== "crop" || !isDragging || !dragStart) return
     
-    const currentState = {
-      files: files.map(f => ({ ...f })),
-      toolOptions: { ...toolOptions },
-      timestamp: Date.now()
+    const canvas = e.currentTarget
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    
+    setCropSelection({
+      x: Math.min(dragStart.x, x),
+      y: Math.min(dragStart.y, y),
+      width: Math.abs(x - dragStart.x),
+      height: Math.abs(y - dragStart.y)
+    })
+  }
+
+  const handleCropEnd = () => {
+    setIsDragging(false)
+    setDragStart(null)
+    
+    if (cropSelection && selectedFile) {
+      setFiles(prev => prev.map(file => 
+        file.id === selectedFile 
+          ? { ...file, cropArea: cropSelection }
+          : file
+      ))
+      
+      const currentFile = files.find(f => f.id === selectedFile)
+      if (currentFile) {
+        setToolOptions(prev => ({
+          ...prev,
+          cropX: Math.round((cropSelection.x / 100) * currentFile.dimensions.width),
+          cropY: Math.round((cropSelection.y / 100) * currentFile.dimensions.height),
+          cropWidth: Math.round((cropSelection.width / 100) * currentFile.dimensions.width),
+          cropHeight: Math.round((cropSelection.height / 100) * currentFile.dimensions.height)
+        }))
+      }
+      
+      saveState()
     }
-    
-    const nextState = redoStack[redoStack.length - 1]
-    setUndoStack(prev => [...prev, currentState])
-    setRedoStack(prev => prev.slice(0, -1))
-    
-    setFiles(nextState.files)
-    setToolOptions(nextState.toolOptions)
+  }
+
+  const rotateImage = (fileId: string, degrees: number) => {
+    setFiles(prev => prev.map(file => 
+      file.id === fileId 
+        ? { ...file, rotation: (file.rotation || 0) + degrees }
+        : file
+    ))
+    saveState()
   }
 
   const handleProcess = async () => {
@@ -462,6 +518,23 @@ export function EnhancedImageToolLayout({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
   }
 
+  const onDragEnd = (result: any) => {
+    if (!result.destination || !allowBatchProcessing) return
+
+    const sourceIndex = result.source.index
+    const destIndex = result.destination.index
+
+    if (sourceIndex === destIndex) return
+
+    setFiles(prev => {
+      const newFiles = [...prev]
+      const [removed] = newFiles.splice(sourceIndex, 1)
+      newFiles.splice(destIndex, 0, removed)
+      return newFiles
+    })
+    saveState()
+  }
+
   const toggleSection = (section: string) => {
     setCollapsedSections(prev => {
       const newSet = new Set(prev)
@@ -483,42 +556,72 @@ export function EnhancedImageToolLayout({
 
   const currentFile = selectedFile ? files.find(f => f.id === selectedFile) : files[0]
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case "z":
+            e.preventDefault()
+            if (e.shiftKey) {
+              handleRedo()
+            } else {
+              handleUndo()
+            }
+            break
+        }
+      } else {
+        switch (e.key) {
+          case "Delete":
+          case "Backspace":
+            if (selectedFile) {
+              removeFile(selectedFile)
+            }
+            break
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [selectedFile, undoStack, redoStack])
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
-      {/* Left Canvas - Enhanced Preview */}
+      {/* Enhanced Left Canvas */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
         {/* Enhanced Canvas Header */}
-        <div className="bg-white border-b px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="flex items-center space-x-4">
+        <div className="bg-white border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between shadow-sm flex-shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="hover:bg-gray-100">
+              <Button variant="ghost" size="sm" className="hover:bg-gray-100 flex-shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg bg-blue-50">
-                <Icon className="h-5 w-5 text-blue-600" />
+            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-50 flex-shrink-0">
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
               </div>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-                <p className="text-sm text-gray-500">{description}</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">{title}</h1>
+                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block truncate">{description}</p>
               </div>
             </div>
             {singleFileOnly && files.length > 0 && (
-              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 hidden sm:inline-flex">
                 Single file only
               </Badge>
             )}
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
             {/* Undo/Redo */}
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleUndo}
               disabled={undoStack.length === 0}
-              className="hover:bg-gray-100"
+              className="hidden sm:inline-flex"
             >
               <Undo2 className="h-4 w-4" />
             </Button>
@@ -527,382 +630,441 @@ export function EnhancedImageToolLayout({
               size="sm" 
               onClick={handleRedo}
               disabled={redoStack.length === 0}
-              className="hover:bg-gray-100"
+              className="hidden sm:inline-flex"
             >
               <Redo2 className="h-4 w-4" />
             </Button>
             
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
             
             {/* Zoom Controls */}
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.max(25, prev - 25))}>
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-gray-600 min-w-[60px] text-center font-mono">{zoom}%</span>
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.min(400, prev + 25))}>
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => { setZoom(100); setPanPosition({ x: 0, y: 0 }) }}>
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-            
-            <Separator orientation="vertical" className="h-6" />
-            
-            {/* Tool Selection */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
-              <Button 
-                variant={tool === "select" ? "default" : "ghost"} 
-                size="sm"
-                onClick={() => setTool("select")}
-                className="h-8 px-3"
-              >
-                <MousePointer className="h-3 w-3" />
-              </Button>
-              {(toolType === "crop" || toolType === "background") && (
-                <Button 
-                  variant={tool === "crop" ? "default" : "ghost"} 
-                  size="sm"
-                  onClick={() => { setTool("crop"); setCropMode(true) }}
-                  className="h-8 px-3"
-                >
-                  <Crop className="h-3 w-3" />
+            {(viewMode === "single" || viewMode === "comparison") && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.max(25, prev - 25))}>
+                  <ZoomOut className="h-4 w-4" />
                 </Button>
-              )}
-              <Button 
-                variant={tool === "pan" ? "default" : "ghost"} 
-                size="sm"
-                onClick={() => setTool("pan")}
-                className="h-8 px-3"
-              >
-                <Hand className="h-3 w-3" />
-              </Button>
-            </div>
+                <span className="text-sm text-gray-600 min-w-[50px] text-center font-mono hidden sm:inline">
+                  {zoom}%
+                </span>
+                <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.min(400, prev + 25))}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setZoom(100)}>
+                  <Target className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             
-            <Separator orientation="vertical" className="h-6" />
+            <Separator orientation="vertical" className="h-6 hidden sm:block" />
             
             {/* View Mode */}
             <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
               <Button 
-                variant={viewMode === "single" ? "default" : "ghost"} 
-                size="sm"
-                onClick={() => setViewMode("single")}
-                className="h-8 px-3"
-              >
-                <Square className="h-3 w-3" />
-              </Button>
-              <Button 
                 variant={viewMode === "grid" ? "default" : "ghost"} 
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="h-8 px-3"
+                className="h-7 px-2 sm:px-3"
               >
                 <Grid className="h-3 w-3" />
               </Button>
+              {files.length > 0 && (
+                <Button 
+                  variant={viewMode === "single" ? "default" : "ghost"} 
+                  size="sm"
+                  onClick={() => setViewMode("single")}
+                  className="h-7 px-2 sm:px-3"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                </Button>
+              )}
               {processedFiles.length > 0 && (
                 <Button 
                   variant={viewMode === "comparison" ? "default" : "ghost"} 
                   size="sm"
                   onClick={() => setViewMode("comparison")}
-                  className="h-8 px-3"
+                  className="h-7 px-2 sm:px-3"
                 >
                   <Eye className="h-3 w-3" />
                 </Button>
               )}
             </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={singleFileOnly && files.length >= 1}
+              className="flex-shrink-0"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Add</span>
+            </Button>
           </div>
         </div>
 
-        {/* Canvas Content */}
-        <div className="flex-1 overflow-hidden relative">
-          {files.length === 0 ? (
-            <div className="h-full flex items-center justify-center p-8">
-              <div 
-                className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 p-12"
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="p-4 rounded-full bg-blue-100 mb-4">
-                  <Upload className="h-8 w-8 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">Drop images here</h3>
-                <p className="text-gray-500 mb-4 text-center">
-                  {singleFileOnly ? "Upload one image file" : `Upload up to ${maxFiles} images`}
-                </p>
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose Images
-                </Button>
-                <p className="text-xs text-gray-400 mt-4 text-center">
-                  Supports: {supportedFormats.map(f => f.split("/")[1].toUpperCase()).join(", ")} • Max 100MB each
-                </p>
+        {/* Smart Suggestions Banner */}
+        {showSuggestions && (
+          <div className="bg-blue-50 border-b px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Lightbulb className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-blue-800">Large files detected</p>
+                <p className="text-xs text-blue-600">Consider compressing images first for faster processing</p>
               </div>
             </div>
-          ) : viewMode === "single" && currentFile ? (
-            /* Enhanced Single Image View */
-            <div className="h-full flex items-center justify-center p-6 relative bg-gray-50">
-              <div 
-                ref={containerRef}
-                className="relative max-w-full max-h-full bg-white rounded-lg shadow-lg overflow-hidden"
-                style={{ 
-                  transform: `scale(${zoom / 100})`,
-                  transformOrigin: "center center"
-                }}
-              >
-                <div className="relative">
-                  <img 
-                    src={currentFile.processedPreview || currentFile.preview}
-                    alt={currentFile.name}
-                    className="max-w-full max-h-[calc(100vh-200px)] object-contain cursor-crosshair"
-                    style={{ 
-                      transform: `translate(${panPosition.x}px, ${panPosition.y}px) rotate(${currentFile.rotation || 0}deg)`,
-                      transition: tool === "pan" ? "none" : "transform 0.3s ease"
-                    }}
-                    draggable={false}
-                  />
-                  
-                  {/* Crop Overlay */}
-                  {cropMode && cropSelection && (
-                    <div className="absolute inset-0 pointer-events-none">
-                      {/* Darkened areas */}
-                      <div className="absolute inset-0 bg-black bg-opacity-40" />
-                      
-                      {/* Crop area */}
-                      <div
-                        className="absolute border-2 border-blue-500 bg-transparent"
-                        style={{
-                          left: `${cropSelection.x}%`,
-                          top: `${cropSelection.y}%`,
-                          width: `${cropSelection.width}%`,
-                          height: `${cropSelection.height}%`,
-                          boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.4)"
-                        }}
-                      >
-                        {/* Grid lines */}
-                        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                          {Array.from({ length: 9 }).map((_, i) => (
-                            <div key={i} className="border border-white border-opacity-30" />
-                          ))}
-                        </div>
-                        
-                        {/* Crop info */}
-                        <div className="absolute -top-8 left-0 bg-blue-600 text-white text-xs px-2 py-1 rounded font-mono">
-                          {Math.round(cropSelection.width)}% × {Math.round(cropSelection.height)}%
-                        </div>
-                        
-                        {/* Resize handles */}
-                        <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-500 rounded-full cursor-nw-resize" />
-                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full cursor-ne-resize" />
-                        <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-500 rounded-full cursor-sw-resize" />
-                        <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-500 rounded-full cursor-se-resize" />
-                      </div>
-                    </div>
-                  )}
-                </div>
+            <div className="flex items-center space-x-2">
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/image-compressor">Compress First</Link>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowSuggestions(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Enhanced Canvas Content */}
+        <div className="flex-1 overflow-hidden">
+          {files.length === 0 ? (
+            <div className="h-full flex flex-col">
+              {/* Ad Banner */}
+              <div className="p-4 flex-shrink-0">
+                <EnhancedAdBanner position="header" showLabel />
               </div>
               
-              {/* Canvas Tools Overlay */}
-              <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-                <div className="bg-white rounded-lg shadow-lg border p-2 flex items-center space-x-2">
-                  <Button size="sm" variant="outline" onClick={() => setZoom(prev => Math.max(25, prev - 25))}>
-                    <ZoomOut className="h-3 w-3" />
+              <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+                <div 
+                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 p-8 sm:p-12"
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="p-4 rounded-full bg-blue-100 mb-4">
+                    <Upload className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Drop images here</h3>
+                  <p className="text-gray-500 mb-4 text-center">
+                    {singleFileOnly ? "Upload one image file" : `Upload up to ${maxFiles} image files`}
+                  </p>
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Choose Images
                   </Button>
-                  <span className="text-sm font-mono min-w-[50px] text-center">{zoom}%</span>
-                  <Button size="sm" variant="outline" onClick={() => setZoom(prev => Math.min(400, prev + 25))}>
-                    <ZoomIn className="h-3 w-3" />
-                  </Button>
-                  <Separator orientation="vertical" className="h-4" />
-                  <Button size="sm" variant="outline" onClick={() => setZoom(100)}>
-                    <Target className="h-3 w-3" />
-                  </Button>
+                  <p className="text-xs text-gray-400 mt-4 text-center">
+                    Supports: {supportedFormats.map(f => f.split("/")[1].toUpperCase()).join(", ")} • Max {maxFiles} files
+                  </p>
                 </div>
               </div>
             </div>
-          ) : viewMode === "comparison" && processedFiles.length > 0 ? (
-            /* Enhanced Before/After Comparison */
-            <div className="p-6 space-y-6 overflow-auto bg-gray-50">
-              {files.slice(0, 3).map((file) => {
-                const processedFile = processedFiles.find(pf => pf.id === file.id)
-                if (!processedFile) return null
+          ) : (
+            <div className="h-full flex flex-col">
+              {/* Ad Banner */}
+              <div className="p-4 border-b flex-shrink-0">
+                <EnhancedAdBanner position="inline" showLabel />
+              </div>
 
-                const compressionRatio = ((file.size - (processedFile.processedSize || processedFile.size)) / file.size * 100)
-
-                return (
-                  <div key={file.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-semibold text-gray-900">{file.name}</h3>
-                        <div className="flex items-center space-x-4 text-sm">
-                          <div className="text-gray-500">
-                            {formatFileSize(file.size)}
+              <div className="flex-1 overflow-auto">
+                {viewMode === "single" && currentFile ? (
+                  /* Enhanced Single Image View with Advanced Crop */
+                  <div className="h-full flex items-center justify-center p-4 sm:p-6 relative">
+                    <div className="relative max-w-full max-h-full group">
+                      <div 
+                        className="relative border border-gray-300 rounded-lg overflow-hidden shadow-lg bg-white"
+                        style={{ 
+                          transform: `scale(${zoom / 100})`,
+                          transformOrigin: "center center",
+                          transition: "transform 0.2s ease"
+                        }}
+                      >
+                        <img
+                          src={currentFile.processedPreview || currentFile.preview}
+                          alt={currentFile.name}
+                          className="max-w-full max-h-[calc(100vh-300px)] object-contain cursor-crosshair"
+                          style={{ 
+                            transform: `rotate(${currentFile.rotation || 0}deg)`,
+                            transition: "transform 0.3s ease"
+                          }}
+                          onMouseDown={handleCropStart}
+                          onMouseMove={handleCropMove}
+                          onMouseUp={handleCropEnd}
+                        />
+                        
+                        {/* Enhanced Crop Overlay */}
+                        {toolType === "crop" && cropSelection && (
+                          <div
+                            className="absolute border-2 border-blue-500 bg-blue-500 bg-opacity-20 pointer-events-none"
+                            style={{
+                              left: `${cropSelection.x}%`,
+                              top: `${cropSelection.y}%`,
+                              width: `${cropSelection.width}%`,
+                              height: `${cropSelection.height}%`
+                            }}
+                          >
+                            {/* Crop Info */}
+                            <div className="absolute -top-8 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                              {Math.round((cropSelection.width * currentFile.dimensions.width) / 100)} × {Math.round((cropSelection.height * currentFile.dimensions.height) / 100)}
+                            </div>
+                            
+                            {/* Grid Lines */}
+                            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-50">
+                              {Array.from({ length: 9 }).map((_, i) => (
+                                <div key={i} className="border border-white border-opacity-50" />
+                              ))}
+                            </div>
+                            
+                            {/* Resize Handles */}
+                            <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></div>
                           </div>
-                          <div className="text-gray-400">→</div>
-                          <div className="text-green-600 font-medium">
-                            {formatFileSize(processedFile.processedSize || processedFile.size)}
-                          </div>
-                          {compressionRatio > 0 && (
-                            <Badge variant="secondary" className="bg-green-100 text-green-700">
-                              -{compressionRatio.toFixed(1)}%
-                            </Badge>
-                          )}
-                        </div>
+                        )}
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium text-gray-600">Original</h4>
-                            <div className="text-xs text-gray-500">
-                              {file.dimensions.width} × {file.dimensions.height}
-                            </div>
-                          </div>
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border">
-                            <img 
-                              src={file.preview}
-                              alt="Original"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium text-gray-600">Processed</h4>
-                            <div className="text-xs text-gray-500">
-                              {processedFile.dimensions?.width || file.dimensions.width} × {processedFile.dimensions?.height || file.dimensions.height}
-                            </div>
-                          </div>
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border">
-                            <img 
-                              src={processedFile.processedPreview}
-                              alt="Processed"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        </div>
+                      {/* Enhanced Image Controls */}
+                      <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-lg shadow-lg p-2">
+                        <Button size="sm" variant="ghost" onClick={() => rotateImage(currentFile.id, -90)} title="Rotate Left">
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => rotateImage(currentFile.id, 90)} title="Rotate Right">
+                          <RotateCw className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" title="Flip Horizontal">
+                          <FlipHorizontal className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" title="Flip Vertical">
+                          <FlipVertical className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Image Info Overlay */}
+                      <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs px-3 py-2 rounded-lg">
+                        <div>{currentFile.dimensions.width} × {currentFile.dimensions.height}</div>
+                        <div>{formatFileSize(currentFile.size)}</div>
                       </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          ) : (
-            /* Enhanced Grid View */
-            <div className="p-6 overflow-auto bg-gray-50">
-              <DragDropContext onDragEnd={() => {}}>
-                <Droppable droppableId="images" direction="horizontal">
-                  {(provided) => (
-                    <div 
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-                    >
-                      {files.map((file, index) => (
-                        <Draggable key={file.id} draggableId={file.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`relative group transition-all duration-200 ${
-                                snapshot.isDragging ? "scale-105 shadow-xl z-50" : ""
-                              } ${selectedFile === file.id ? "ring-2 ring-blue-500" : ""}`}
-                            >
-                              <Card 
-                                className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-blue-200" 
-                                onClick={() => setSelectedFile(file.id)}
-                              >
-                                {/* Enhanced Image Preview */}
-                                <div className="relative aspect-square bg-gray-100">
-                                  <img 
-                                    src={file.processedPreview || file.preview}
-                                    alt={file.name}
-                                    className="w-full h-full object-contain"
-                                    style={{ 
-                                      transform: `rotate(${file.rotation || 0}deg)`,
-                                      transition: "transform 0.3s ease"
-                                    }}
-                                  />
+                ) : viewMode === "comparison" && processedFiles.length > 0 ? (
+                  /* Enhanced Before/After Comparison */
+                  <div className="p-4 sm:p-6 space-y-6 overflow-auto">
+                    {files.slice(0, 3).map((file, index) => {
+                      const processedFile = processedFiles.find(pf => pf.id === file.id)
+                      if (!processedFile) return null
 
-                                  {/* Processing Status */}
-                                  {file.processed && (
-                                    <div className="absolute top-2 left-2">
-                                      <div className="bg-green-500 text-white rounded-full p-1">
-                                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
+                      const compressionRatio = ((file.size - (processedFile.processedSize || processedFile.size)) / file.size) * 100
 
-                                  {/* Enhanced Hover Actions */}
-                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                    <div className="flex flex-col space-y-1">
-                                      <Button 
-                                        size="sm" 
-                                        variant="secondary" 
-                                        className="h-7 w-7 p-0 bg-white/90 hover:bg-white shadow-sm" 
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          removeFile(file.id)
-                                        }}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                      <Button 
-                                        size="sm" 
-                                        variant="secondary" 
-                                        className="h-7 w-7 p-0 bg-white/90 hover:bg-white shadow-sm" 
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setViewMode("single")
-                                          setSelectedFile(file.id)
-                                        }}
-                                      >
-                                        <Maximize className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* File Size Badge */}
-                                  <div className="absolute bottom-2 left-2">
-                                    <Badge variant="secondary" className="text-xs bg-white/90">
-                                      {formatFileSize(file.size)}
-                                    </Badge>
-                                  </div>
+                      return (
+                        <div key={file.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                          <div className="px-4 sm:px-6 py-4 border-b bg-gray-50">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-lg font-medium text-gray-900">{file.name}</h3>
+                              <div className="flex items-center space-x-4 text-sm">
+                                <div className="text-gray-500">
+                                  {formatFileSize(file.size)} → <span className="text-green-600 font-medium">{formatFileSize(processedFile.processedSize || processedFile.size)}</span>
                                 </div>
-
-                                {/* Enhanced File Info */}
-                                <div className="p-3 bg-white">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <h4 className="font-medium text-gray-900 truncate text-sm">{file.name}</h4>
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {file.dimensions.width} × {file.dimensions.height}
-                                    {file.processedSize && file.processedSize !== file.size && (
-                                      <span className="text-green-600 ml-2">
-                                        → {formatFileSize(file.processedSize)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </Card>
+                                {compressionRatio > 0 && (
+                                  <Badge className="bg-green-100 text-green-800">
+                                    -{compressionRatio.toFixed(1)}%
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+                          </div>
+                          
+                          <div className="p-4 sm:p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center">
+                                  <Circle className="h-4 w-4 mr-2 text-gray-400" />
+                                  Original
+                                </h4>
+                                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border">
+                                  <img 
+                                    src={file.preview}
+                                    alt="Original"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                                <div className="mt-3 text-xs text-gray-500 space-y-1">
+                                  <div className="flex justify-between">
+                                    <span>Dimensions:</span>
+                                    <span>{file.dimensions.width} × {file.dimensions.height}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Size:</span>
+                                    <span>{formatFileSize(file.size)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center">
+                                  <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                  Processed
+                                </h4>
+                                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden border">
+                                  <img 
+                                    src={processedFile.processedPreview}
+                                    alt="Processed"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                                <div className="mt-3 text-xs text-gray-500 space-y-1">
+                                  <div className="flex justify-between">
+                                    <span>Dimensions:</span>
+                                    <span>{processedFile.dimensions?.width || file.dimensions.width} × {processedFile.dimensions?.height || file.dimensions.height}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Size:</span>
+                                    <span className="text-green-600 font-medium">{formatFileSize(processedFile.processedSize || processedFile.size)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  /* Enhanced Grid View */
+                  <div className="p-4 sm:p-6 overflow-auto">
+                    <DragDropContext onDragEnd={onDragEnd}>
+                      <Droppable droppableId="images" direction="horizontal">
+                        {(provided) => (
+                          <div 
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+                          >
+                            {files.map((file, index) => (
+                              <Draggable key={file.id} draggableId={file.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={`relative group transition-all duration-200 ${
+                                      snapshot.isDragging ? "scale-105 shadow-xl z-50" : ""
+                                    } ${selectedFile === file.id ? "ring-2 ring-blue-500" : ""}`}
+                                  >
+                                    <Card className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200" onClick={() => setSelectedFile(file.id)}>
+                                      {/* Enhanced Image Preview */}
+                                      <div className="relative aspect-square bg-gray-100">
+                                        <img 
+                                          src={file.processedPreview || file.preview}
+                                          alt={file.name}
+                                          className="w-full h-full object-contain"
+                                          style={{ 
+                                            transform: `rotate(${file.rotation || 0}deg)`,
+                                            transition: "transform 0.3s ease"
+                                          }}
+                                        />
+
+                                        {/* Processing Status */}
+                                        {file.processed && (
+                                          <div className="absolute top-2 left-2">
+                                            <div className="bg-green-500 text-white rounded-full p-1">
+                                              <CheckCircle className="h-4 w-4" />
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Enhanced Quick Actions - iLoveIMG Style */}
+                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <div className="flex space-x-1">
+                                            <Button 
+                                              size="sm" 
+                                              variant="secondary" 
+                                              className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                replaceFile(file.id)
+                                              }}
+                                              title="Replace"
+                                            >
+                                              <RotateCw className="h-3 w-3" />
+                                            </Button>
+                                            <Button 
+                                              size="sm" 
+                                              variant="secondary" 
+                                              className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                removeFile(file.id)
+                                              }}
+                                              title="Remove"
+                                            >
+                                              <Trash2 className="h-3 w-3 text-red-600" />
+                                            </Button>
+                                          </div>
+                                        </div>
+
+                                        {/* File Size Badge */}
+                                        <div className="absolute bottom-2 left-2">
+                                          <Badge variant="secondary" className="text-xs bg-white/90 shadow-sm">
+                                            {formatFileSize(file.size)}
+                                          </Badge>
+                                        </div>
+
+                                        {/* Crop Area Indicator */}
+                                        {file.cropArea && (
+                                          <div
+                                            className="absolute border-2 border-blue-500 bg-blue-500 bg-opacity-20"
+                                            style={{
+                                              left: `${file.cropArea.x}%`,
+                                              top: `${file.cropArea.y}%`,
+                                              width: `${file.cropArea.width}%`,
+                                              height: `${file.cropArea.height}%`
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+
+                                      {/* Enhanced File Info */}
+                                      <div className="p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <h4 className="font-medium text-gray-900 truncate text-sm">{file.name}</h4>
+                                          {file.processed && (
+                                            <Badge className="bg-green-100 text-green-800 text-xs">
+                                              Done
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-gray-500 space-y-1">
+                                          <div className="flex justify-between">
+                                            <span>Dimensions:</span>
+                                            <span>{file.dimensions.width} × {file.dimensions.height}</span>
+                                          </div>
+                                          {file.processedSize && file.processedSize !== file.size && (
+                                            <div className="flex justify-between">
+                                              <span>New size:</span>
+                                              <span className="text-green-600 font-medium">
+                                                {formatFileSize(file.processedSize)}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </Card>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Enhanced Right Sidebar */}
-      <div className="w-80 bg-white border-l shadow-lg flex flex-col overflow-hidden">
+      <div className="w-80 bg-white border-l shadow-lg flex flex-col overflow-hidden hidden lg:flex">
         {/* Sidebar Header */}
         <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
           <div className="flex items-center space-x-3">
@@ -923,7 +1085,10 @@ export function EnhancedImageToolLayout({
             {files.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">Files ({files.length})</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                    <Layers className="h-4 w-4 mr-2" />
+                    Files ({files.length})
+                  </h3>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -935,36 +1100,64 @@ export function EnhancedImageToolLayout({
                   </Button>
                 </div>
                 
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {files.map((file) => (
                     <div 
                       key={file.id}
-                      className={`flex items-center space-x-3 p-2 rounded-lg border cursor-pointer transition-all ${
+                      className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all ${
                         selectedFile === file.id ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50"
                       }`}
                       onClick={() => setSelectedFile(file.id)}
                     >
-                      <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
+                      <div className="w-10 h-10 rounded bg-blue-100 flex-shrink-0 overflow-hidden">
                         <img src={file.preview} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        <p className="text-xs text-gray-500">{file.dimensions.width}×{file.dimensions.height} • {formatFileSize(file.size)}</p>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeFile(file.id)
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            replaceFile(file.id)
+                          }}
+                          title="Replace"
+                        >
+                          <RotateCw className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeFile(file.id)
+                          }}
+                          title="Remove"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Single File Warning */}
+            {singleFileOnly && files.length > 1 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-800">Multiple files detected</span>
+                </div>
+                <p className="text-sm text-yellow-700">
+                  This tool only processes one file at a time. Only the selected file will be processed.
+                </p>
               </div>
             )}
 
@@ -976,8 +1169,15 @@ export function EnhancedImageToolLayout({
                 onOpenChange={() => toggleSection(sectionName)}
               >
                 <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-0 h-auto">
-                    <h3 className="text-sm font-semibold text-gray-900">{sectionName}</h3>
+                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-gray-50">
+                    <h3 className="text-sm font-semibold text-gray-900 flex items-center">
+                      {sectionName === "Dimensions" && <Square className="h-4 w-4 mr-2" />}
+                      {sectionName === "Output" && <Settings className="h-4 w-4 mr-2" />}
+                      {sectionName === "Crop Settings" && <Crop className="h-4 w-4 mr-2" />}
+                      {sectionName === "Position" && <Move className="h-4 w-4 mr-2" />}
+                      {!["Dimensions", "Output", "Crop Settings", "Position"].includes(sectionName) && <Sliders className="h-4 w-4 mr-2" />}
+                      {sectionName}
+                    </h3>
                     {collapsedSections.has(sectionName) ? 
                       <ChevronDown className="h-4 w-4" /> : 
                       <ChevronUp className="h-4 w-4" />
@@ -991,7 +1191,7 @@ export function EnhancedImageToolLayout({
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">{option.label}</Label>
                         {option.description && (
-                          <div className="text-xs text-gray-500" title={option.description}>
+                          <div className="text-xs text-gray-500 bg-gray-100 rounded-full w-4 h-4 flex items-center justify-center cursor-help" title={option.description}>
                             ?
                           </div>
                         )}
@@ -1000,10 +1200,7 @@ export function EnhancedImageToolLayout({
                       {option.type === "select" && (
                         <Select
                           value={toolOptions[option.key]?.toString()}
-                          onValueChange={(value) => {
-                            setToolOptions(prev => ({ ...prev, [option.key]: value }))
-                            saveState()
-                          }}
+                          onValueChange={(value) => setToolOptions(prev => ({ ...prev, [option.key]: value }))}
                         >
                           <SelectTrigger className="h-9">
                             <SelectValue />
@@ -1022,14 +1219,10 @@ export function EnhancedImageToolLayout({
                         <div className="space-y-2">
                           <Slider
                             value={[toolOptions[option.key] || option.defaultValue]}
-                            onValueChange={([value]) => {
-                              setToolOptions(prev => ({ ...prev, [option.key]: value }))
-                            }}
-                            onValueCommit={() => saveState()}
+                            onValueChange={([value]) => setToolOptions(prev => ({ ...prev, [option.key]: value }))}
                             min={option.min}
                             max={option.max}
                             step={option.step}
-                            className="w-full"
                           />
                           <div className="flex justify-between text-xs text-gray-500">
                             <span>{option.min}</span>
@@ -1045,10 +1238,7 @@ export function EnhancedImageToolLayout({
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             checked={toolOptions[option.key] || false}
-                            onCheckedChange={(checked) => {
-                              setToolOptions(prev => ({ ...prev, [option.key]: checked }))
-                              saveState()
-                            }}
+                            onCheckedChange={(checked) => setToolOptions(prev => ({ ...prev, [option.key]: checked }))}
                           />
                           <span className="text-sm text-gray-700">{option.label}</span>
                         </div>
@@ -1058,7 +1248,6 @@ export function EnhancedImageToolLayout({
                         <Input
                           value={toolOptions[option.key] || ""}
                           onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                          onBlur={saveState}
                           placeholder={`Enter ${option.label.toLowerCase()}`}
                           className="h-9"
                         />
@@ -1069,7 +1258,6 @@ export function EnhancedImageToolLayout({
                           type="number"
                           value={toolOptions[option.key] || option.defaultValue}
                           onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: parseInt(e.target.value) || option.defaultValue }))}
-                          onBlur={saveState}
                           min={option.min}
                           max={option.max}
                           className="h-9"
@@ -1081,52 +1269,15 @@ export function EnhancedImageToolLayout({
                           <input
                             type="color"
                             value={toolOptions[option.key] || option.defaultValue}
-                            onChange={(e) => {
-                              setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))
-                              saveState()
-                            }}
-                            className="w-10 h-9 border border-gray-300 rounded cursor-pointer"
+                            onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
+                            className="w-12 h-9 border border-gray-300 rounded cursor-pointer"
                           />
                           <Input
                             value={toolOptions[option.key] || option.defaultValue}
                             onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                            onBlur={saveState}
                             placeholder="#000000"
                             className="flex-1 h-9"
                           />
-                        </div>
-                      )}
-
-                      {option.type === "file" && (
-                        <div className="space-y-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="w-full h-9"
-                            onClick={() => {
-                              const input = document.createElement("input")
-                              input.type = "file"
-                              input.accept = "image/*"
-                              input.onchange = (e) => {
-                                const file = (e.target as HTMLInputElement).files?.[0]
-                                if (file) {
-                                  const reader = new FileReader()
-                                  reader.onload = (e) => {
-                                    setToolOptions(prev => ({ ...prev, [option.key]: e.target?.result }))
-                                    saveState()
-                                  }
-                                  reader.readAsDataURL(file)
-                                }
-                              }
-                              input.click()
-                            }}
-                          >
-                            <Upload className="h-3 w-3 mr-2" />
-                            Upload {option.label}
-                          </Button>
-                          {toolOptions[option.key] && (
-                            <div className="text-xs text-green-600">✓ Image uploaded</div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1134,6 +1285,11 @@ export function EnhancedImageToolLayout({
                 </CollapsibleContent>
               </Collapsible>
             ))}
+
+            {/* Ad Space */}
+            <div className="py-4">
+              <EnhancedAdBanner position="sidebar" showLabel />
+            </div>
           </div>
         </div>
 
@@ -1200,27 +1356,25 @@ export function EnhancedImageToolLayout({
                   <div className="font-semibold text-green-700">
                     {formatFileSize(processedFiles.reduce((sum, file) => sum + (file.processedSize || file.size), 0))}
                   </div>
-                  <div className="text-green-600">Processed Size</div>
+                  <div className="text-green-600">Processed</div>
+                </div>
+              )}
+              
+              {currentFile && (
+                <div className="text-center p-2 bg-blue-50 rounded border border-blue-200">
+                  <div className="font-semibold text-blue-700 truncate">{currentFile.name}</div>
+                  <div className="text-blue-600">Selected</div>
                 </div>
               )}
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Keyboard Shortcuts Help */}
-          <details className="text-xs text-gray-500">
-            <summary className="cursor-pointer hover:text-gray-700">Keyboard Shortcuts</summary>
-            <div className="mt-2 space-y-1 pl-2">
-              <div>Ctrl+Z: Undo</div>
-              <div>Ctrl+Shift+Z: Redo</div>
-              <div>Ctrl++: Zoom In</div>
-              <div>Ctrl+-: Zoom Out</div>
-              <div>Ctrl+0: Reset View</div>
-              <div>Del: Delete Selected</div>
-              <div>C: Crop Tool</div>
-              <div>V: Select Tool</div>
-              <div>H: Pan Tool</div>
-            </div>
-          </details>
+      {/* Mobile Sidebar */}
+      <div className="lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50 hidden" id="mobile-sidebar-overlay">
+        <div className="absolute right-0 top-0 h-full w-80 bg-white shadow-xl">
+          {/* Mobile sidebar content would go here */}
         </div>
       </div>
 

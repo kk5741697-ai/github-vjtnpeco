@@ -130,3 +130,88 @@
 .hero-gradient {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
+
+/* Enhanced responsive utilities */
+@media (max-width: 640px) {
+  .mobile-hide {
+    @apply hidden;
+  }
+  
+  .mobile-full {
+    @apply w-full;
+  }
+  
+  .mobile-stack {
+    @apply flex-col space-y-2 space-x-0;
+  }
+}
+
+/* Smooth transitions for tool interactions */
+.tool-transition {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+/* Enhanced crop overlay */
+.crop-overlay {
+  @apply absolute border-2 border-blue-500 bg-blue-500 bg-opacity-20 pointer-events-none;
+}
+
+.crop-handle {
+  @apply absolute w-2 h-2 bg-blue-500 rounded-full border border-white shadow-sm;
+}
+
+/* File upload zone enhancements */
+.upload-zone {
+  @apply border-2 border-dashed border-gray-300 rounded-xl transition-all duration-200;
+}
+
+.upload-zone:hover {
+  @apply border-blue-400 bg-blue-50/50;
+}
+
+.upload-zone.drag-active {
+  @apply border-blue-500 bg-blue-100/50 scale-105;
+}
+
+/* Enhanced shadows and depth */
+.card-enhanced {
+  @apply shadow-sm hover:shadow-lg transition-shadow duration-200;
+}
+
+.sidebar-enhanced {
+  @apply shadow-xl border-l border-gray-200;
+}
+
+/* Improved focus states */
+.focus-enhanced:focus-visible {
+  @apply ring-2 ring-blue-500 ring-offset-2 outline-none;
+}
+
+/* Loading states */
+.loading-shimmer {
+  @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%];
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Mobile-first responsive grid */
+.responsive-grid {
+  @apply grid gap-4;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
