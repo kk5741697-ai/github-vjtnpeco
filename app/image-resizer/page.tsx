@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Maximize } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -12,6 +12,7 @@ const resizeOptions = [
     defaultValue: 800,
     min: 1,
     max: 10000,
+    section: "Dimensions",
   },
   {
     key: "height",
@@ -20,12 +21,14 @@ const resizeOptions = [
     defaultValue: 600,
     min: 1,
     max: 10000,
+    section: "Dimensions",
   },
   {
     key: "maintainAspectRatio",
     label: "Maintain Aspect Ratio",
     type: "checkbox" as const,
     defaultValue: true,
+    section: "Dimensions",
   },
   {
     key: "outputFormat",
@@ -37,6 +40,8 @@ const resizeOptions = [
       { value: "png", label: "PNG" },
       { value: "webp", label: "WebP" },
     ],
+    section: "Output",
+    condition: (options) => !window.location.pathname.includes("to-"),
   },
   {
     key: "quality",
@@ -46,6 +51,7 @@ const resizeOptions = [
     min: 10,
     max: 100,
     step: 5,
+    section: "Output",
   },
 ]
 
@@ -53,7 +59,7 @@ async function resizeImages(files: any[], options: any) {
   try {
     const processedFiles = await Promise.all(
       files.map(async (file) => {
-        const processedBlob = await ImageProcessor.resizeImage(file.originalFile || file.file, {
+        const processedBlob = await ImageProcessor.processImage(file.originalFile || file.file, {
           width: options.width,
           height: options.height,
           maintainAspectRatio: options.maintainAspectRatio,
@@ -93,7 +99,7 @@ async function resizeImages(files: any[], options: any) {
 
 export default function ImageResizerPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Resize IMAGE"
       description="Define your dimensions, by percent or pixel, and resize your JPG, PNG, SVG, and GIF images."
       icon={Maximize}
