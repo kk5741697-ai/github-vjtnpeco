@@ -49,6 +49,20 @@ const pdfTools = [
     icon: FileType,
     category: "PDF Tools",
   },
+  {
+    title: "PDF Unlock",
+    description: "Remove password protection and restrictions from encrypted PDF files.",
+    href: "/pdf-unlock",
+    icon: FileType,
+    category: "PDF Tools",
+  },
+  {
+    title: "PDF Organizer",
+    description: "Reorder, sort, and organize PDF pages. Remove blank pages and add page numbers.",
+    href: "/pdf-organizer",
+    icon: FileType,
+    category: "PDF Tools",
+  },
 ]
 
 export default function PDFToolsPage() {

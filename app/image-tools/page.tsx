@@ -49,6 +49,28 @@ const imageTools = [
     category: "Image Tools",
     isNew: true,
   },
+  {
+    title: "Image Flipper",
+    description: "Flip images horizontally, vertically, or both directions with batch processing.",
+    href: "/image-flipper",
+    icon: ImageIcon,
+    category: "Image Tools",
+  },
+  {
+    title: "Image Filters",
+    description: "Apply professional filters and adjustments: brightness, contrast, saturation, and effects.",
+    href: "/image-filters",
+    icon: ImageIcon,
+    category: "Image Tools",
+  },
+  {
+    title: "Image Upscaler",
+    description: "Enlarge images with AI-enhanced quality. Increase resolution while preserving details.",
+    href: "/image-upscaler",
+    icon: ImageIcon,
+    category: "Image Tools",
+    isNew: true,
+  },
 ]
 
 export default function ImageToolsPage() {

@@ -406,13 +406,6 @@ export function PDFToolLayout({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            >
-              {viewMode === "grid" ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
               onClick={() => fileInputRef.current?.click()}
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -584,20 +577,32 @@ export function PDFToolLayout({
                                               src={page.thumbnail}
                                               alt={`Page ${page.pageNumber}`}
                                               className="w-full h-full object-contain"
-                                              style={{ transform: `scale(${zoom / 100})` }}
                                             />
                                             
-                                            {/* Hover Actions */}
-                                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                            {/* Hover Actions - Top Right */}
+                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                               <div className="flex space-x-1">
-                                                <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                                                  <Eye className="h-3 w-3" />
-                                                </Button>
-                                                <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="secondary" 
+                                                  className="h-6 w-6 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    // Rotate page
+                                                  }}
+                                                >
                                                   <RotateCw className="h-3 w-3" />
                                                 </Button>
-                                                <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                                                  <Maximize2 className="h-3 w-3" />
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="secondary" 
+                                                  className="h-6 w-6 p-0 bg-white/90 hover:bg-white shadow-sm"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    // Delete page
+                                                  }}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
                                                 </Button>
                                               </div>
                                             </div>

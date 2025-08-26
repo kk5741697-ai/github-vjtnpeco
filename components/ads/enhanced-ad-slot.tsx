@@ -34,20 +34,34 @@ export function EnhancedAdSlot({
       try {
         // In development, simulate ad loading
         if (isDevelopment) {
-          // Silent loading in development
           setIsLoaded(true)
           onLoad?.()
           return
         }
 
         // Production ad loading
-        adManager.defineSlot(slot)
-        adManager.displaySlot(slot.id)
+        await adManager.initialize({
+          networkCode: "12345678",
+          enableConsent: true,
+          enableAutoRefresh: true,
+          defaultRefreshInterval: 60,
+          enableLazyLoading: true,
+          enableSRA: true,
+          collapseEmptyDivs: true,
+          isDevelopment
+        })
+        
+        if (!isDevelopment) {
+          adManager.defineSlot(slot)
+          adManager.displaySlot(slot.id)
+        }
 
         setIsLoaded(true)
         onLoad?.()
       } catch (error) {
-        // Silent error handling in development
+        if (!isDevelopment) {
+          console.warn(`Failed to load ad slot ${slot.id}:`, error)
+        }
         setHasError(true)
         onError?.(error as Error)
       }
@@ -57,9 +71,11 @@ export function EnhancedAdSlot({
 
     return () => {
       try {
-        adManager.destroySlot(slot.id)
+        if (!isDevelopment) {
+          adManager.destroySlot(slot.id)
+        }
       } catch (error) {
-        console.warn(`Failed to cleanup ad slot ${slot.id}:`, error)
+        // Silent cleanup in development
       }
     }
   }, [slot, onLoad, onError, isDevelopment])

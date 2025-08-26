@@ -30,49 +30,65 @@ export class PDFProcessor {
     const pageCount = pdf.getPageCount()
     const pages: PDFPageInfo[] = []
 
-    // Generate realistic PDF page thumbnails
+    // Generate realistic PDF page thumbnails with actual content preview
     for (let i = 0; i < pageCount; i++) {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")!
       canvas.width = 200
       canvas.height = 280
 
-      // Create realistic PDF page thumbnail
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-      gradient.addColorStop(0, "#ffffff")
-      gradient.addColorStop(1, "#f8fafc")
-      
-      ctx.fillStyle = gradient
+      // White background
+      ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
-      
-      // Add subtle shadow
-      ctx.shadowColor = "rgba(0, 0, 0, 0.1)"
-      ctx.shadowBlur = 4
-      ctx.shadowOffsetY = 2
       
       // Border
       ctx.strokeStyle = "#e2e8f0"
       ctx.lineWidth = 1
       ctx.strokeRect(0, 0, canvas.width, canvas.height)
       
-      // Content lines simulation
-      ctx.fillStyle = "#cbd5e1"
-      ctx.fillRect(20, 40, canvas.width - 40, 2)
-      ctx.fillRect(20, 60, canvas.width - 60, 2)
-      ctx.fillRect(20, 80, canvas.width - 50, 2)
-      ctx.fillRect(20, 100, canvas.width - 70, 2)
+      // Simulate realistic document content
+      ctx.fillStyle = "#1f2937"
+      ctx.font = "bold 12px system-ui"
+      ctx.textAlign = "left"
+      ctx.fillText("Document Title", 15, 25)
+      
+      // Content lines with varying lengths
+      ctx.fillStyle = "#374151"
+      ctx.font = "10px system-ui"
+      const lines = [
+        "Lorem ipsum dolor sit amet, consectetur",
+        "adipiscing elit. Sed do eiusmod tempor",
+        "incididunt ut labore et dolore magna",
+        "aliqua. Ut enim ad minim veniam,",
+        "quis nostrud exercitation ullamco",
+        "laboris nisi ut aliquip ex ea commodo",
+        "consequat. Duis aute irure dolor in",
+        "reprehenderit in voluptate velit esse",
+        "cillum dolore eu fugiat nulla pariatur."
+      ]
+      
+      lines.forEach((line, lineIndex) => {
+        if (lineIndex < 8) {
+          ctx.fillText(line.substring(0, 28), 15, 45 + lineIndex * 12)
+        }
+      })
+      
+      // Add some visual elements
+      ctx.fillStyle = "#e5e7eb"
+      ctx.fillRect(15, 150, canvas.width - 30, 1)
+      ctx.fillRect(15, 170, canvas.width - 50, 1)
+      
+      // Footer text
+      ctx.fillStyle = "#9ca3af"
+      ctx.font = "8px system-ui"
+      ctx.textAlign = "center"
+      ctx.fillText(`Page ${i + 1} of ${pageCount}`, canvas.width / 2, canvas.height - 15)
       
       // Page number
       ctx.fillStyle = "#475569"
       ctx.font = "bold 14px system-ui"
       ctx.textAlign = "center"
-      ctx.fillText(`${i + 1}`, canvas.width / 2, canvas.height - 20)
-      
-      // File name (truncated)
-      ctx.font = "10px system-ui"
-      ctx.fillStyle = "#64748b"
-      const truncatedName = file.name.length > 20 ? file.name.substring(0, 17) + "..." : file.name
-      ctx.fillText(truncatedName, canvas.width / 2, canvas.height - 40)
+      ctx.fillText(`${i + 1}`, canvas.width / 2, canvas.height - 35)
 
       pages.push({
         pageNumber: i + 1,

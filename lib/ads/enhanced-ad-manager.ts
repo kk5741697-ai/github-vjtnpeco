@@ -50,7 +50,6 @@ class EnhancedAdManager {
 
     // In development, skip actual GPT loading
     if (this.isDevelopment) {
-      console.log("🚧 Ad Manager: Development mode - ads disabled")
       this.isInitialized = true
       return
     }
@@ -144,7 +143,6 @@ class EnhancedAdManager {
     this.consentGiven = hasConsent
     
     if (this.isDevelopment) {
-      // Silent in development
       return
     }
 
