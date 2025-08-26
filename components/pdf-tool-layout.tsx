@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { EnhancedAdBanner } from "@/components/ads/enhanced-ad-banner"
 import { 
@@ -29,6 +30,7 @@ import Link from "next/link"
 interface PDFFile {
   id: string
   file: File
+  originalFile?: File
   name: string
   size: number
   pageCount: number
@@ -42,30 +44,31 @@ interface PDFFile {
   processed?: boolean
 }
 
-interface SimpleToolOption {
+interface ToolOption {
   key: string
   label: string
-  type: "select" | "slider" | "input"
+  type: "select" | "slider" | "input" | "checkbox" | "color" | "text"
   defaultValue: any
   min?: number
   max?: number
   step?: number
-  options?: Array<{ value: string; label: string }>
+  selectOptions?: Array<{ value: string; label: string }>
+  condition?: (options: any) => boolean
 }
 
-interface SimplePDFToolLayoutProps {
+interface PDFToolLayoutProps {
   title: string
   description: string
   icon: any
   toolType: "split" | "merge" | "compress" | "convert" | "protect"
   processFunction: (files: PDFFile[], options: any) => Promise<{ success: boolean; downloadUrl?: string; error?: string }>
-  options: SimpleToolOption[]
+  options: ToolOption[]
   maxFiles?: number
   allowPageSelection?: boolean
   allowPageReorder?: boolean
 }
 
-export function SimplePDFToolLayout({
+export function PDFToolLayout({
   title,
   description,
   icon: Icon,
@@ -75,7 +78,7 @@ export function SimplePDFToolLayout({
   maxFiles = 5,
   allowPageSelection = false,
   allowPageReorder = false
-}: SimplePDFToolLayoutProps) {
+}: PDFToolLayoutProps) {
   const [files, setFiles] = useState<PDFFile[]>([])
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set())
   const [toolOptions, setToolOptions] = useState<Record<string, any>>({})
@@ -98,18 +101,30 @@ export function SimplePDFToolLayout({
 
     const newFiles: PDFFile[] = []
     
-    for (let i = 0; i < uploadedFiles.length && i < maxFiles; i++) {
+    for (let i = 0; i < uploadedFiles.length && newFiles.length < maxFiles; i++) {
       const file = uploadedFiles[i]
       if (file.type !== "application/pdf") continue
+
+      // Check if file already exists
+      const existingFile = files.find(f => f.name === file.name && f.size === file.size)
+      if (existingFile) {
+        toast({
+          title: "File already added",
+          description: `${file.name} is already in the list`,
+          variant: "destructive"
+        })
+        continue
+      }
 
       try {
         // Generate realistic PDF thumbnails
         const pageCount = Math.floor(Math.random() * 20) + 1
-        const pages = await this.generatePDFThumbnails(file, pageCount)
+        const pages = await generatePDFThumbnails(file, pageCount)
         
         const pdfFile: PDFFile = {
           id: `${file.name}-${Date.now()}-${i}`,
           file,
+          originalFile: file,
           name: file.name,
           size: file.size,
           pageCount,
@@ -397,32 +412,33 @@ export function SimplePDFToolLayout({
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
       {/* Left Canvas - PDF Preview */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+        <div className="bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
             <Link href="/">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div className="flex items-center space-x-2">
-              <Icon className="h-5 w-5 text-red-600" />
-              <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+            <div className="flex items-center space-x-2 min-w-0">
+              <Icon className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">{title}</h1>
             </div>
-            <Badge variant="secondary">{files.length} files</Badge>
+            <Badge variant="secondary" className="hidden sm:inline-flex">{files.length} files</Badge>
             {files.length > 0 && (
-              <Badge variant="outline">
+              <Badge variant="outline" className="hidden md:inline-flex">
                 {files.reduce((sum, file) => sum + file.pageCount, 0)} pages
               </Badge>
             )}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <Button 
               variant="outline" 
               size="sm" 
               onClick={undo}
               disabled={historyIndex <= 0}
+              className="hidden sm:inline-flex"
             >
               <Undo className="h-4 w-4" />
             </Button>
@@ -431,6 +447,7 @@ export function SimplePDFToolLayout({
               size="sm" 
               onClick={redo}
               disabled={historyIndex >= history.length - 1}
+              className="hidden sm:inline-flex"
             >
               <Redo className="h-4 w-4" />
             </Button>
@@ -455,31 +472,31 @@ export function SimplePDFToolLayout({
         <div className="flex-1 overflow-auto">
           {files.length === 0 ? (
             <div className="h-full flex flex-col">
-              <div className="p-4">
+              <div className="p-4 flex-shrink-0">
                 <EnhancedAdBanner position="header" showLabel />
               </div>
               
-              <div className="flex-1 flex items-center justify-center p-6">
+              <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
                 <div 
-                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors p-12"
+                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors p-8 sm:p-12"
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="h-16 w-16 mb-4 text-gray-400" />
-                  <h3 className="text-xl font-medium mb-2">Drop PDF files here</h3>
-                  <p className="text-gray-400 mb-4">or click to browse</p>
+                  <Upload className="h-12 sm:h-16 w-12 sm:w-16 mb-4 text-gray-400" />
+                  <h3 className="text-lg sm:text-xl font-medium mb-2">Drop PDF files here</h3>
+                  <p className="text-gray-400 mb-4 text-center">or click to browse</p>
                   <Button>
                     <Upload className="h-4 w-4 mr-2" />
                     Choose Files
                   </Button>
-                  <p className="text-xs text-gray-400 mt-4">Maximum {maxFiles} files • Up to 100MB each</p>
+                  <p className="text-xs text-gray-400 mt-4 text-center">Maximum {maxFiles} files • Up to 100MB each</p>
                 </div>
               </div>
             </div>
           ) : (
             <div className="h-full flex flex-col">
-              <div className="p-4 border-b">
+              <div className="p-4 border-b flex-shrink-0">
                 <EnhancedAdBanner position="inline" showLabel />
               </div>
 
@@ -611,10 +628,10 @@ export function SimplePDFToolLayout({
         </div>
       </div>
 
-      {/* Right Sidebar - Simplified */}
-      <div className="w-80 bg-white border-l shadow-lg flex flex-col">
+      {/* Right Sidebar */}
+      <div className="w-80 bg-white border-l shadow-lg flex flex-col flex-shrink-0">
         {/* Sidebar Header */}
-        <div className="px-6 py-4 border-b bg-gray-50">
+        <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <Icon className="h-5 w-5 text-red-600" />
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
@@ -624,8 +641,8 @@ export function SimplePDFToolLayout({
 
         {/* Sidebar Content */}
         <div className="flex-1 overflow-auto p-6 space-y-6">
-          {/* Essential Options Only */}
-          {options.map((option) => (
+          {/* Options */}
+          {options.filter(option => !option.condition || option.condition(toolOptions)).map((option) => (
             <div key={option.key} className="space-y-2">
               <Label className="text-sm font-medium">{option.label}</Label>
               
@@ -641,7 +658,7 @@ export function SimplePDFToolLayout({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {option.options?.map((opt) => (
+                    {option.selectOptions?.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -668,17 +685,27 @@ export function SimplePDFToolLayout({
                 </div>
               )}
 
-              {option.type === "input" && (
+              {option.type === "text" && (
                 <Input
-                  type="number"
                   value={toolOptions[option.key] || option.defaultValue}
                   onChange={(e) => {
-                    setToolOptions(prev => ({ ...prev, [option.key]: parseInt(e.target.value) || option.defaultValue }))
+                    setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))
                   }}
                   onBlur={saveToHistory}
-                  min={option.min}
-                  max={option.max}
                 />
+              )}
+
+              {option.type === "checkbox" && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={toolOptions[option.key] || false}
+                    onCheckedChange={(checked) => {
+                      setToolOptions(prev => ({ ...prev, [option.key]: checked }))
+                      saveToHistory()
+                    }}
+                  />
+                  <span className="text-sm">{option.label}</span>
+                </div>
               )}
             </div>
           ))}
@@ -699,7 +726,7 @@ export function SimplePDFToolLayout({
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-6 border-t bg-gray-50 space-y-3">
+        <div className="p-6 border-t bg-gray-50 space-y-3 flex-shrink-0">
           <Button 
             onClick={handleProcess}
             disabled={isProcessing || files.length === 0}

@@ -70,7 +70,7 @@ async function cropImages(files: any[], options: any) {
 
 export default function ImageCropperPage() {
   return (
-    <SimpleImageToolLayout
+    <ImageToolLayout
       title="Crop IMAGE"
       description="Crop JPG, PNG, or GIFs with ease. Choose pixels to define your rectangle or use our visual editor."
       icon={Crop}
@@ -79,6 +79,8 @@ export default function ImageCropperPage() {
       options={cropOptions}
       singleFileOnly={true}
       presets={cropPresets}
+      supportedFormats={["image/jpeg", "image/png", "image/gif", "image/webp"]}
+      outputFormats={["png"]}
     />
   )
 }

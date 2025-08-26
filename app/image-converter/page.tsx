@@ -1,6 +1,6 @@
 "use client"
 
-import { SimpleImageToolLayout } from "@/components/simple-image-tool-layout"
+import { ImageToolLayout } from "@/components/image-tool-layout"
 import { RefreshCw } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -111,6 +111,7 @@ export default function ImageConverterPage() {
       maxFiles={15}
       allowBatchProcessing={true}
       supportedFormats={["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"]}
+      outputFormats={["jpeg", "png", "webp", "gif", "bmp", "tiff"]}
     />
   )
 }

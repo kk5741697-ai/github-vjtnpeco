@@ -1,9 +1,12 @@
+import { headers } from "next/headers"
 import { Header } from "@/components/header"
+import { DomainHeader } from "@/components/domain-header"
+import { DomainHomepage } from "@/components/domain-homepage"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Maximize, Crop, FileImage, ArrowUpDown, Edit3, Zap, ImageIcon, Download, Palette, Upload, Archive } from "lucide-react"
 import Link from "next/link"
-
+import { getDomainConfig } from "@/lib/domain-config"
 
 const featuredTools = [
   {
@@ -103,7 +106,102 @@ const categories = [
   { name: "Security", active: false },
 ]
 
-export default function HomePage() {
+export default async function HomePage() {
+  const headersList = await headers()
+  const host = headersList.get("host") || "pixoratools.com"
+  const domainConfig = getDomainConfig(host)
+
+  // Domain-specific tool configurations
+  const domainTools = {
+    "pixoratools.com": {
+      tools: [
+        { name: "COMPRESS IMAGE", href: "/image-compressor" },
+        { name: "RESIZE IMAGE", href: "/image-resizer" },
+        { name: "CROP IMAGE", href: "/image-cropper" },
+        { name: "CONVERT TO JPG", href: "/image-converter" },
+        { name: "PHOTO EDITOR", href: "/image-watermark" },
+      ],
+      moreTools: [
+        { name: "PDF Tools", href: "/pdf-tools" },
+        { name: "QR Tools", href: "/qr-tools" },
+        { name: "Text Tools", href: "/text-tools" },
+        { name: "SEO Tools", href: "/seo-tools" },
+        { name: "Utilities", href: "/utilities" },
+      ]
+    },
+    "pixoraimg.com": {
+      tools: [
+        { name: "COMPRESS IMAGE", href: "/image-compressor" },
+        { name: "RESIZE IMAGE", href: "/image-resizer" },
+        { name: "CROP IMAGE", href: "/image-cropper" },
+        { name: "CONVERT IMAGE", href: "/image-converter" },
+        { name: "REMOVE BACKGROUND", href: "/background-remover" },
+      ],
+      moreTools: [
+        { name: "Image Filters", href: "/image-filters" },
+        { name: "Image Upscaler", href: "/image-upscaler" },
+        { name: "Image Flipper", href: "/image-flipper" },
+        { name: "Image Rotator", href: "/image-rotator" },
+      ]
+    },
+    "pixorapdf.com": {
+      tools: [
+        { name: "MERGE PDF", href: "/pdf-merger" },
+        { name: "SPLIT PDF", href: "/pdf-splitter" },
+        { name: "COMPRESS PDF", href: "/pdf-compressor" },
+        { name: "PDF TO IMAGE", href: "/pdf-to-image" },
+        { name: "PROTECT PDF", href: "/pdf-password-protector" },
+      ],
+      moreTools: [
+        { name: "PDF Unlock", href: "/pdf-unlock" },
+        { name: "PDF Watermark", href: "/pdf-watermark" },
+        { name: "PDF Organizer", href: "/pdf-organizer" },
+        { name: "Image to PDF", href: "/image-to-pdf" },
+      ]
+    },
+    "pixoraqrcode.com": {
+      tools: [
+        { name: "QR GENERATOR", href: "/qr-code-generator" },
+        { name: "QR SCANNER", href: "/qr-scanner" },
+        { name: "WIFI QR", href: "/qr-code-generator" },
+        { name: "VCARD QR", href: "/qr-code-generator" },
+        { name: "BULK QR", href: "/qr-code-generator" },
+      ],
+      moreTools: [
+        { name: "Barcode Generator", href: "/barcode-generator" },
+        { name: "QR Analytics", href: "/qr-analytics" },
+      ]
+    }
+  }
+
+  const currentDomainTools = domainTools[host as keyof typeof domainTools] || domainTools["pixoratools.com"]
+
+  // Use domain-specific header for specialized domains
+  if (host !== "pixoratools.com") {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <DomainHeader
+          domain={host}
+          brandName={domainConfig.name}
+          primaryColor={domainConfig.primaryColor}
+          tools={currentDomainTools.tools}
+          moreTools={currentDomainTools.moreTools}
+        />
+        
+        <DomainHomepage
+          domain={host}
+          brandName={domainConfig.name}
+          primaryColor={domainConfig.primaryColor}
+          title={domainConfig.seoDefaults.title}
+          subtitle={domainConfig.seoDefaults.description}
+          tools={featuredTools}
+          categories={categories}
+        />
+      </div>
+    )
+  }
+
+  // Default global domain layout
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -117,16 +215,36 @@ export default function HomePage() {
             Your online photo editor is here and forever free!
           </p>
 
+          {/* Search Section */}
+          <div className="max-w-2xl mx-auto mb-12">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search tools..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-colors"
+              />
+            </div>
+            {searchQuery && (
+              <p className="text-sm text-gray-500 mt-2">
+                Found {filteredTools.length} tools matching "{searchQuery}"
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-wrap justify-center gap-2 mb-12">
             {categories.map((category) => (
               <Button
                 key={category.name}
-                variant={category.active ? "default" : "outline"}
+                variant={activeCategory === category.name ? "default" : "outline"}
                 className={`px-6 py-2 rounded-full ${
-                  category.active
+                  activeCategory === category.name
                     ? "bg-gray-900 text-white hover:bg-gray-800"
                     : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                 }`}
+                onClick={() => setActiveCategory(category.name)}
               >
                 {category.name}
               </Button>
@@ -134,7 +252,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {featuredTools.map((tool) => {
+            {filteredTools.map((tool) => {
               const Icon = tool.icon
               return (
                 <Link
@@ -152,6 +270,18 @@ export default function HomePage() {
               )
             })}
           </div>
+
+          {filteredTools.length === 0 && searchQuery && (
+            <div className="text-center py-12">
+              <p className="text-gray-500 mb-4">No tools found matching your search.</p>
+              <Button 
+                variant="outline" 
+                onClick={() => setSearchQuery("")}
+              >
+                Clear Search
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 
