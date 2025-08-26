@@ -1,6 +1,6 @@
 "use client"
 
-import { PDFToolLayout } from "@/components/pdf-tool-layout"
+import { SimplePDFToolLayout } from "@/components/simple-pdf-tool-layout"
 import { Archive } from "lucide-react"
 import { PDFProcessor } from "@/lib/pdf-processor"
 import JSZip from "jszip"
@@ -11,39 +11,12 @@ const compressOptions = [
     label: "Compression Level",
     type: "select" as const,
     defaultValue: "medium",
-    selectOptions: [
+    options: [
       { value: "low", label: "Low Compression (High Quality)" },
       { value: "medium", label: "Medium Compression (Balanced)" },
       { value: "high", label: "High Compression (Small Size)" },
       { value: "extreme", label: "Extreme Compression (Smallest)" },
     ],
-  },
-  {
-    key: "imageQuality",
-    label: "Image Quality",
-    type: "slider" as const,
-    defaultValue: 80,
-    min: 10,
-    max: 100,
-    step: 5,
-  },
-  {
-    key: "optimizeImages",
-    label: "Optimize Images",
-    type: "checkbox" as const,
-    defaultValue: true,
-  },
-  {
-    key: "removeMetadata",
-    label: "Remove Metadata",
-    type: "checkbox" as const,
-    defaultValue: false,
-  },
-  {
-    key: "compressFonts",
-    label: "Compress Fonts",
-    type: "checkbox" as const,
-    defaultValue: true,
   },
 ]
 
@@ -57,11 +30,11 @@ async function compressPDF(files: any[], options: any) {
     }
 
     const compressionOptions = {
-      quality: options.imageQuality,
+      quality: 80,
       compressionLevel: options.compressionLevel,
-      optimizeImages: options.optimizeImages,
-      removeMetadata: options.removeMetadata,
-      compressFonts: options.compressFonts,
+      optimizeImages: true,
+      removeMetadata: false,
+      compressFonts: true,
     }
 
     if (files.length === 1) {
@@ -102,7 +75,7 @@ async function compressPDF(files: any[], options: any) {
 
 export default function PDFCompressorPage() {
   return (
-    <PDFToolLayout
+    <SimplePDFToolLayout
       title="PDF Compressor"
       description="Reduce PDF file size while maintaining quality. Optimize images, compress fonts, and remove unnecessary metadata to create smaller files."
       icon={Archive}

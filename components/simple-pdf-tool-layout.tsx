@@ -4,35 +4,23 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
-import { AdBanner } from "@/components/ads/ad-banner"
+import { EnhancedAdBanner } from "@/components/ads/enhanced-ad-banner"
 import { 
   Upload, 
   Download, 
   Trash2, 
-  RotateCw, 
-  Move, 
-  ZoomIn, 
-  ZoomOut, 
-  Eye,
-  Plus,
-  Minus,
   FileText,
-  AlertCircle,
   CheckCircle,
   X,
-  Menu,
   ArrowLeft,
-  Grid,
-  List,
-  Settings,
-  Maximize2,
-  MoreHorizontal
+  Undo,
+  Redo,
+  RefreshCw
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -41,7 +29,6 @@ import Link from "next/link"
 interface PDFFile {
   id: string
   file: File
-  originalFile: File
   name: string
   size: number
   pageCount: number
@@ -53,34 +40,32 @@ interface PDFFile {
     height: number
   }>
   processed?: boolean
-  processedBlob?: Blob
 }
 
-interface ToolOption {
+interface SimpleToolOption {
   key: string
   label: string
-  type: "text" | "number" | "select" | "checkbox" | "slider" | "color"
+  type: "select" | "slider" | "input"
   defaultValue: any
   min?: number
   max?: number
   step?: number
-  selectOptions?: Array<{ value: string; label: string }>
-  condition?: (options: any) => boolean
+  options?: Array<{ value: string; label: string }>
 }
 
-interface PDFToolLayoutProps {
+interface SimplePDFToolLayoutProps {
   title: string
   description: string
   icon: any
   toolType: "split" | "merge" | "compress" | "convert" | "protect"
   processFunction: (files: PDFFile[], options: any) => Promise<{ success: boolean; downloadUrl?: string; error?: string }>
-  options: ToolOption[]
+  options: SimpleToolOption[]
   maxFiles?: number
   allowPageSelection?: boolean
   allowPageReorder?: boolean
 }
 
-export function PDFToolLayout({
+export function SimplePDFToolLayout({
   title,
   description,
   icon: Icon,
@@ -90,22 +75,16 @@ export function PDFToolLayout({
   maxFiles = 5,
   allowPageSelection = false,
   allowPageReorder = false
-}: PDFToolLayoutProps) {
+}: SimplePDFToolLayoutProps) {
   const [files, setFiles] = useState<PDFFile[]>([])
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set())
   const [toolOptions, setToolOptions] = useState<Record<string, any>>({})
   const [isProcessing, setIsProcessing] = useState(false)
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
-  const [splitMode, setSplitMode] = useState<"pages" | "range" | "size">("pages")
-  const [pageRanges, setPageRanges] = useState([{ from: 1, to: 1 }])
-  const [extractMode, setExtractMode] = useState<"all" | "selected">("selected")
-  const [zoom, setZoom] = useState(100)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
+  const [history, setHistory] = useState<Array<{ files: PDFFile[]; options: any }>>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Initialize options with defaults
   useEffect(() => {
     const defaultOptions: Record<string, any> = {}
     options.forEach(option => {
@@ -124,20 +103,13 @@ export function PDFToolLayout({
       if (file.type !== "application/pdf") continue
 
       try {
-        // Simulate PDF info extraction
+        // Generate realistic PDF thumbnails
         const pageCount = Math.floor(Math.random() * 20) + 1
-        const pages = Array.from({ length: pageCount }, (_, index) => ({
-          pageNumber: index + 1,
-          thumbnail: generatePageThumbnail(file.name, index + 1),
-          selected: toolType === "split" ? false : true,
-          width: 200,
-          height: 280
-        }))
+        const pages = await this.generatePDFThumbnails(file, pageCount)
         
         const pdfFile: PDFFile = {
           id: `${file.name}-${Date.now()}-${i}`,
           file,
-          originalFile: file,
           name: file.name,
           size: file.size,
           pageCount,
@@ -155,34 +127,71 @@ export function PDFToolLayout({
     }
 
     setFiles(prev => [...prev, ...newFiles])
-    
-    // Auto-set page ranges for split tool
-    if (toolType === "split" && newFiles.length > 0) {
-      const firstFile = newFiles[0]
-      setPageRanges([{ from: 1, to: firstFile.pageCount }])
-      setSelectedFileId(firstFile.id)
-    }
+    saveToHistory()
   }
 
-  const generatePageThumbnail = (fileName: string, pageNumber: number): string => {
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")!
-    canvas.width = 200
-    canvas.height = 280
-
-    // Create placeholder thumbnail
-    ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.strokeStyle = "#e5e7eb"
-    ctx.strokeRect(0, 0, canvas.width, canvas.height)
+  const generatePDFThumbnails = async (file: File, pageCount: number) => {
+    const pages = []
     
-    ctx.fillStyle = "#6b7280"
-    ctx.font = "14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText(`Page ${pageNumber}`, canvas.width / 2, canvas.height / 2)
-    ctx.fillText(fileName.substring(0, 15), canvas.width / 2, canvas.height / 2 + 20)
+    for (let i = 0; i < pageCount; i++) {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")!
+      canvas.width = 200
+      canvas.height = 280
 
-    return canvas.toDataURL("image/jpeg", 0.7)
+      // Create realistic PDF page thumbnail
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      
+      ctx.strokeStyle = "#e2e8f0"
+      ctx.lineWidth = 1
+      ctx.strokeRect(0, 0, canvas.width, canvas.height)
+      
+      // Document header
+      ctx.fillStyle = "#1f2937"
+      ctx.font = "bold 12px system-ui"
+      ctx.textAlign = "left"
+      ctx.fillText("Document Title", 15, 25)
+      
+      // Content lines
+      ctx.fillStyle = "#374151"
+      ctx.font = "10px system-ui"
+      const lines = [
+        "Lorem ipsum dolor sit amet, consectetur",
+        "adipiscing elit. Sed do eiusmod tempor",
+        "incididunt ut labore et dolore magna",
+        "aliqua. Ut enim ad minim veniam,",
+        "quis nostrud exercitation ullamco",
+        "laboris nisi ut aliquip ex ea commodo"
+      ]
+      
+      lines.forEach((line, lineIndex) => {
+        if (lineIndex < 6) {
+          ctx.fillText(line.substring(0, 28), 15, 45 + lineIndex * 12)
+        }
+      })
+      
+      // Page elements
+      ctx.fillStyle = "#e5e7eb"
+      ctx.fillRect(15, 150, canvas.width - 30, 1)
+      ctx.fillRect(15, 170, canvas.width - 50, 1)
+      
+      // Page number
+      ctx.fillStyle = "#9ca3af"
+      ctx.font = "8px system-ui"
+      ctx.textAlign = "center"
+      ctx.fillText(`Page ${i + 1} of ${pageCount}`, canvas.width / 2, canvas.height - 15)
+
+      pages.push({
+        pageNumber: i + 1,
+        thumbnail: canvas.toDataURL("image/png", 0.8),
+        selected: toolType === "split" ? false : true,
+        width: 200,
+        height: 280
+      })
+    }
+
+    return pages
   }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -196,9 +205,48 @@ export function PDFToolLayout({
 
   const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId))
-    if (selectedFileId === fileId) {
-      setSelectedFileId(files.length > 1 ? files.find(f => f.id !== fileId)?.id || null : null)
+  }
+
+  const saveToHistory = () => {
+    const newHistoryEntry = { files: [...files], options: { ...toolOptions } }
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1)
+      newHistory.push(newHistoryEntry)
+      return newHistory.slice(-10)
+    })
+    setHistoryIndex(prev => Math.min(prev + 1, 9))
+  }
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prevState = history[historyIndex - 1]
+      setFiles(prevState.files)
+      setToolOptions(prevState.options)
+      setHistoryIndex(prev => prev - 1)
     }
+  }
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1]
+      setFiles(nextState.files)
+      setToolOptions(nextState.options)
+      setHistoryIndex(prev => prev + 1)
+    }
+  }
+
+  const resetTool = () => {
+    setFiles([])
+    setDownloadUrl(null)
+    setSelectedPages(new Set())
+    setHistory([])
+    setHistoryIndex(-1)
+    
+    const defaultOptions: Record<string, any> = {}
+    options.forEach(option => {
+      defaultOptions[option.key] = option.defaultValue
+    })
+    setToolOptions(defaultOptions)
   }
 
   const togglePageSelection = (fileId: string, pageNumber: number) => {
@@ -213,7 +261,6 @@ export function PDFToolLayout({
       return newSet
     })
 
-    // Update file pages
     setFiles(prev => prev.map(file => {
       if (file.id === fileId) {
         return {
@@ -233,7 +280,6 @@ export function PDFToolLayout({
     setFiles(prev => prev.map(file => {
       if (file.id === fileId) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: true }))
-        // Update selectedPages set
         updatedPages.forEach(page => {
           setSelectedPages(prev => new Set(prev).add(`${fileId}-${page.pageNumber}`))
         })
@@ -247,7 +293,6 @@ export function PDFToolLayout({
     setFiles(prev => prev.map(file => {
       if (file.id === fileId) {
         const updatedPages = file.pages.map(page => ({ ...page, selected: false }))
-        // Update selectedPages set
         updatedPages.forEach(page => {
           setSelectedPages(prev => {
             const newSet = new Set(prev)
@@ -259,24 +304,6 @@ export function PDFToolLayout({
       }
       return file
     }))
-  }
-
-  const addPageRange = () => {
-    const lastRange = pageRanges[pageRanges.length - 1]
-    const maxPage = selectedFileId ? files.find(f => f.id === selectedFileId)?.pageCount || 1 : 1
-    setPageRanges(prev => [...prev, { from: lastRange.to + 1, to: Math.min(lastRange.to + 5, maxPage) }])
-  }
-
-  const updatePageRange = (index: number, field: "from" | "to", value: number) => {
-    setPageRanges(prev => prev.map((range, i) => 
-      i === index ? { ...range, [field]: value } : range
-    ))
-  }
-
-  const removePageRange = (index: number) => {
-    if (pageRanges.length > 1) {
-      setPageRanges(prev => prev.filter((_, i) => i !== index))
-    }
   }
 
   const handleProcess = async () => {
@@ -293,14 +320,7 @@ export function PDFToolLayout({
     setDownloadUrl(null)
 
     try {
-      const processOptions = {
-        ...toolOptions,
-        pageRanges: toolType === "split" ? pageRanges : undefined,
-        extractMode,
-        splitMode
-      }
-
-      const result = await processFunction(files, processOptions)
+      const result = await processFunction(files, toolOptions)
       
       if (result.success && result.downloadUrl) {
         setDownloadUrl(result.downloadUrl)
@@ -363,22 +383,11 @@ export function PDFToolLayout({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
   }
 
-  const getVisibleOptions = () => {
-    return options.filter(option => {
-      if (option.condition) {
-        return option.condition(toolOptions)
-      }
-      return true
-    })
-  }
-
-  const selectedFile = selectedFileId ? files.find(f => f.id === selectedFileId) : files[0]
-
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
       {/* Left Canvas - PDF Preview */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Canvas Header */}
+        {/* Header */}
         <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link href="/">
@@ -391,33 +400,42 @@ export function PDFToolLayout({
               <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
             </div>
             <Badge variant="secondary">{files.length} files</Badge>
-            {selectedFile && (
-              <Badge variant="outline">{selectedFile.pageCount} pages</Badge>
+            {files.length > 0 && (
+              <Badge variant="outline">
+                {files.reduce((sum, file) => sum + file.pageCount, 0)} pages
+              </Badge>
             )}
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.max(25, prev - 25))}>
-              <ZoomOut className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={undo}
+              disabled={historyIndex <= 0}
+            >
+              <Undo className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-gray-600 min-w-[60px] text-center">{zoom}%</span>
-            <Button variant="outline" size="sm" onClick={() => setZoom(prev => Math.min(200, prev + 25))}>
-              <ZoomIn className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+            >
+              <Redo className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={resetTool}
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
             <Button 
               variant="outline" 
               size="sm"
               onClick={() => fileInputRef.current?.click()}
             >
-              <Plus className="h-4 w-4 mr-1" />
               Add More
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <Menu className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -426,9 +444,8 @@ export function PDFToolLayout({
         <div className="flex-1 overflow-auto">
           {files.length === 0 ? (
             <div className="h-full flex flex-col">
-              {/* Ad Banner */}
               <div className="p-4">
-                <AdBanner position="header" showLabel />
+                <EnhancedAdBanner position="header" showLabel />
               </div>
               
               <div className="flex-1 flex items-center justify-center p-6">
@@ -451,46 +468,14 @@ export function PDFToolLayout({
             </div>
           ) : (
             <div className="h-full flex flex-col">
-              {/* Ad Banner */}
               <div className="p-4 border-b">
-                <AdBanner position="inline" showLabel />
+                <EnhancedAdBanner position="inline" showLabel />
               </div>
-
-              {/* File Tabs */}
-              {files.length > 1 && (
-                <div className="bg-white border-b px-6 py-2">
-                  <div className="flex space-x-2 overflow-x-auto">
-                    {files.map((file) => (
-                      <Button
-                        key={file.id}
-                        variant={selectedFileId === file.id ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setSelectedFileId(file.id)}
-                        className="flex-shrink-0"
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        {file.name.length > 15 ? `${file.name.substring(0, 15)}...` : file.name}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removeFile(file.id)
-                          }}
-                          className="ml-2 h-4 w-4 p-0"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="flex-1 p-6 overflow-auto">
                 <DragDropContext onDragEnd={onDragEnd}>
                   <div className="space-y-8">
-                    {(selectedFile ? [selectedFile] : files).map((file, fileIndex) => (
+                    {files.map((file, fileIndex) => (
                       <div key={file.id} className="bg-white rounded-lg shadow-sm border">
                         {/* File Header */}
                         <div className="px-6 py-4 border-b bg-gray-50 rounded-t-lg">
@@ -542,11 +527,7 @@ export function PDFToolLayout({
                               {...provided.droppableProps}
                               className="p-6"
                             >
-                              <div className={`grid gap-4 ${
-                                viewMode === "grid" 
-                                  ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" 
-                                  : "grid-cols-1"
-                              }`}>
+                              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
                                 {file.pages.map((page, pageIndex) => (
                                   <Draggable 
                                     key={`${file.id}-${page.pageNumber}`}
@@ -578,34 +559,6 @@ export function PDFToolLayout({
                                               alt={`Page ${page.pageNumber}`}
                                               className="w-full h-full object-contain"
                                             />
-                                            
-                                            {/* Hover Actions - Top Right */}
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                              <div className="flex space-x-1">
-                                                <Button 
-                                                  size="sm" 
-                                                  variant="secondary" 
-                                                  className="h-6 w-6 p-0 bg-white/90 hover:bg-white shadow-sm"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    // Rotate page
-                                                  }}
-                                                >
-                                                  <RotateCw className="h-3 w-3" />
-                                                </Button>
-                                                <Button 
-                                                  size="sm" 
-                                                  variant="secondary" 
-                                                  className="h-6 w-6 p-0 bg-white/90 hover:bg-white shadow-sm"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    // Delete page
-                                                  }}
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                </Button>
-                                              </div>
-                                            </div>
                                           </div>
 
                                           {/* Page Number */}
@@ -624,15 +577,6 @@ export function PDFToolLayout({
                                                   : "bg-white border-gray-300 hover:border-red-300"
                                               }`}>
                                                 {page.selected && <CheckCircle className="h-3 w-3 text-white" />}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Drag Handle */}
-                                          {allowPageReorder && (
-                                            <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                              <div className="bg-white rounded p-1 shadow-sm">
-                                                <Move className="h-3 w-3 text-gray-600" />
                                               </div>
                                             </div>
                                           )}
@@ -656,172 +600,37 @@ export function PDFToolLayout({
         </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className={`${sidebarOpen ? "w-80" : "w-0"} lg:w-80 bg-white border-l shadow-lg flex flex-col fixed lg:relative right-0 top-0 h-screen transition-all duration-300 z-50 lg:z-auto overflow-hidden`}>
+      {/* Right Sidebar - Simplified */}
+      <div className="w-80 bg-white border-l shadow-lg flex flex-col">
         {/* Sidebar Header */}
-        <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Icon className="h-5 w-5 text-red-600" />
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+        <div className="px-6 py-4 border-b bg-gray-50">
+          <div className="flex items-center space-x-2">
+            <Icon className="h-5 w-5 text-red-600" />
+            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           </div>
           <p className="text-sm text-gray-600 mt-1">{description}</p>
         </div>
 
         {/* Sidebar Content */}
         <div className="flex-1 overflow-auto p-6 space-y-6">
-          {/* Split Mode Selection (for split tool) */}
-          {toolType === "split" && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-base font-medium mb-3 block">Split Mode</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant={splitMode === "range" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSplitMode("range")}
-                    className="flex flex-col items-center p-3 h-auto"
-                  >
-                    <div className="w-6 h-6 mb-1 flex items-center justify-center text-lg">
-                      📄
-                    </div>
-                    <span className="text-xs">Range</span>
-                  </Button>
-                  <Button
-                    variant={splitMode === "pages" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSplitMode("pages")}
-                    className="flex flex-col items-center p-3 h-auto bg-red-500 text-white hover:bg-red-600"
-                  >
-                    <div className="w-6 h-6 mb-1 flex items-center justify-center text-lg">
-                      📑
-                    </div>
-                    <span className="text-xs">Pages</span>
-                  </Button>
-                  <Button
-                    variant={splitMode === "size" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSplitMode("size")}
-                    className="flex flex-col items-center p-3 h-auto"
-                  >
-                    <div className="w-6 h-6 mb-1 flex items-center justify-center text-lg">
-                      📊
-                    </div>
-                    <span className="text-xs">Size</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Extract Mode */}
-              <div>
-                <Label className="text-base font-medium mb-3 block">Extract mode:</Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={extractMode === "all" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setExtractMode("all")}
-                    className={extractMode === "all" ? "bg-red-500 text-white hover:bg-red-600" : ""}
-                  >
-                    Extract all pages
-                  </Button>
-                  <Button
-                    variant={extractMode === "selected" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setExtractMode("selected")}
-                  >
-                    Select pages
-                  </Button>
-                </div>
-              </div>
-
-              {/* Page Ranges (for range mode) */}
-              {splitMode === "range" && (
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Page Ranges</Label>
-                  {pageRanges.map((range, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-500 w-16">Range {index + 1}</span>
-                      <div className="flex items-center space-x-2 flex-1">
-                        <Input
-                          type="number"
-                          value={range.from}
-                          onChange={(e) => updatePageRange(index, "from", parseInt(e.target.value) || 1)}
-                          min={1}
-                          max={selectedFile?.pageCount || 1}
-                          className="w-20"
-                          placeholder="from"
-                        />
-                        <span className="text-gray-400">to</span>
-                        <Input
-                          type="number"
-                          value={range.to}
-                          onChange={(e) => updatePageRange(index, "to", parseInt(e.target.value) || 1)}
-                          min={range.from}
-                          max={selectedFile?.pageCount || 1}
-                          className="w-20"
-                          placeholder="to"
-                        />
-                        {pageRanges.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removePageRange(index)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={addPageRange}
-                    className="w-full"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Range
-                  </Button>
-                </div>
-              )}
-
-              {/* Selection Info */}
-              {extractMode === "selected" && allowPageSelection && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800">
-                    Selected pages will be converted into separate PDF files. 
-                    <span className="font-medium">{selectedPages.size} PDF{selectedPages.size !== 1 ? 's' : ''}</span> will be created.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tool Options */}
-          {getVisibleOptions().map((option) => (
+          {/* Essential Options Only */}
+          {options.map((option) => (
             <div key={option.key} className="space-y-2">
               <Label className="text-sm font-medium">{option.label}</Label>
               
               {option.type === "select" && (
                 <Select
                   value={toolOptions[option.key]?.toString()}
-                  onValueChange={(value) => setToolOptions(prev => ({ ...prev, [option.key]: value }))}
+                  onValueChange={(value) => {
+                    setToolOptions(prev => ({ ...prev, [option.key]: value }))
+                    saveToHistory()
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {option.selectOptions?.map((opt) => (
+                    {option.options?.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -835,6 +644,7 @@ export function PDFToolLayout({
                   <Slider
                     value={[toolOptions[option.key] || option.defaultValue]}
                     onValueChange={([value]) => setToolOptions(prev => ({ ...prev, [option.key]: value }))}
+                    onValueCommit={() => saveToHistory()}
                     min={option.min}
                     max={option.max}
                     step={option.step}
@@ -847,62 +657,38 @@ export function PDFToolLayout({
                 </div>
               )}
 
-              {option.type === "checkbox" && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={toolOptions[option.key] || false}
-                    onCheckedChange={(checked) => setToolOptions(prev => ({ ...prev, [option.key]: checked }))}
-                  />
-                  <span className="text-sm">{option.label}</span>
-                </div>
-              )}
-
-              {option.type === "text" && (
-                <Input
-                  value={toolOptions[option.key] || ""}
-                  onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                  placeholder={`Enter ${option.label.toLowerCase()}`}
-                />
-              )}
-
-              {option.type === "number" && (
+              {option.type === "input" && (
                 <Input
                   type="number"
                   value={toolOptions[option.key] || option.defaultValue}
-                  onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: parseInt(e.target.value) || option.defaultValue }))}
+                  onChange={(e) => {
+                    setToolOptions(prev => ({ ...prev, [option.key]: parseInt(e.target.value) || option.defaultValue }))
+                  }}
+                  onBlur={saveToHistory}
                   min={option.min}
                   max={option.max}
                 />
               )}
-
-              {option.type === "color" && (
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="color"
-                    value={toolOptions[option.key] || option.defaultValue}
-                    onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                    className="w-12 h-8 border border-gray-300 rounded cursor-pointer"
-                  />
-                  <Input
-                    value={toolOptions[option.key] || option.defaultValue}
-                    onChange={(e) => setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))}
-                    placeholder="#000000"
-                    className="flex-1"
-                  />
-                </div>
-              )}
             </div>
           ))}
 
-          {/* Ad Space */}
+          {/* Selection Info for Split Tool */}
+          {toolType === "split" && allowPageSelection && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                Selected pages will be extracted into separate PDF files. 
+                <span className="font-medium"> {selectedPages.size} PDF{selectedPages.size !== 1 ? 's' : ''}</span> will be created.
+              </p>
+            </div>
+          )}
+
           <div className="py-4">
-            <AdBanner position="sidebar" showLabel />
+            <EnhancedAdBanner position="sidebar" showLabel />
           </div>
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-6 border-t bg-gray-50 space-y-3 flex-shrink-0">
-          {/* Process Button */}
+        <div className="p-6 border-t bg-gray-50 space-y-3">
           <Button 
             onClick={handleProcess}
             disabled={isProcessing || files.length === 0}
@@ -916,12 +702,11 @@ export function PDFToolLayout({
               </>
             ) : (
               <>
-                {title} <span className="ml-2">→</span>
+                {title} →
               </>
             )}
           </Button>
 
-          {/* Progress Bar */}
           {isProcessing && (
             <div className="space-y-2">
               <Progress value={66} className="h-2" />
@@ -929,7 +714,6 @@ export function PDFToolLayout({
             </div>
           )}
 
-          {/* Download Button */}
           {downloadUrl && (
             <Button 
               onClick={handleDownload}
@@ -941,7 +725,6 @@ export function PDFToolLayout({
             </Button>
           )}
 
-          {/* File Info */}
           {files.length > 0 && (
             <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
               <div className="flex justify-between">
@@ -966,14 +749,6 @@ export function PDFToolLayout({
           )}
         </div>
       </div>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 lg:hidden z-40"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
 
       {/* Hidden File Input */}
       <input

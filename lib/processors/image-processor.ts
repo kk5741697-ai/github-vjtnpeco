@@ -1,5 +1,4 @@
 import imageCompression from "browser-image-compression"
-import Pica from "pica"
 
 export interface ImageProcessingOptions {
   quality?: number
@@ -10,25 +9,19 @@ export interface ImageProcessingOptions {
   backgroundColor?: string
   watermarkText?: string
   watermarkOpacity?: number
-  watermarkPosition?: "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right"
   rotation?: number
   cropArea?: { x: number; y: number; width: number; height: number }
   compressionLevel?: "low" | "medium" | "high" | "maximum"
-  removeBackground?: boolean
   filters?: {
     brightness?: number
     contrast?: number
     saturation?: number
-    blur?: number
-    sepia?: boolean
-    grayscale?: boolean
   }
 }
 
 export class ImageProcessor {
-  private static pica = new Pica()
 
-  static async processImage(file: File, options: ImageProcessingOptions): Promise<Blob> {
+  static async resizeImage(file: File, options: ImageProcessingOptions): Promise<Blob> {
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
     if (!ctx) throw new Error("Canvas not supported")
@@ -40,31 +33,18 @@ export class ImageProcessor {
           let { width: targetWidth, height: targetHeight } = options
           const { naturalWidth: originalWidth, naturalHeight: originalHeight } = img
 
-          // Apply crop first if specified
-          let sourceX = 0, sourceY = 0, sourceWidth = originalWidth, sourceHeight = originalHeight
-          
-          if (options.cropArea) {
-            sourceX = (options.cropArea.x / 100) * originalWidth
-            sourceY = (options.cropArea.y / 100) * originalHeight
-            sourceWidth = (options.cropArea.width / 100) * originalWidth
-            sourceHeight = (options.cropArea.height / 100) * originalHeight
-          }
-
           // Calculate target dimensions
-          if (!targetWidth && !targetHeight) {
-            targetWidth = sourceWidth
-            targetHeight = sourceHeight
-          } else if (options.maintainAspectRatio && targetWidth && targetHeight) {
-            const aspectRatio = sourceWidth / sourceHeight
+          if (options.maintainAspectRatio !== false && targetWidth && targetHeight) {
+            const aspectRatio = originalWidth / originalHeight
             if (targetWidth / targetHeight > aspectRatio) {
               targetWidth = targetHeight * aspectRatio
             } else {
               targetHeight = targetWidth / aspectRatio
             }
           } else if (targetWidth && !targetHeight) {
-            targetHeight = (targetWidth / sourceWidth) * sourceHeight
+            targetHeight = (targetWidth / originalWidth) * originalHeight
           } else if (targetHeight && !targetWidth) {
-            targetWidth = (targetHeight / sourceHeight) * sourceWidth
+            targetWidth = (targetHeight / originalHeight) * originalWidth
           }
 
           canvas.width = targetWidth!
@@ -76,45 +56,12 @@ export class ImageProcessor {
             ctx.fillRect(0, 0, canvas.width, canvas.height)
           }
 
-          // Apply rotation if specified
-          if (options.rotation) {
-            const centerX = canvas.width / 2
-            const centerY = canvas.height / 2
-            ctx.translate(centerX, centerY)
-            ctx.rotate((options.rotation * Math.PI) / 180)
-            ctx.translate(-centerX, -centerY)
-          }
-
-          // Apply filters
-          if (options.filters) {
-            const filters = []
-            const { brightness, contrast, saturation, blur, sepia, grayscale } = options.filters
-
-            if (brightness !== undefined) filters.push(`brightness(${brightness}%)`)
-            if (contrast !== undefined) filters.push(`contrast(${contrast}%)`)
-            if (saturation !== undefined) filters.push(`saturate(${saturation}%)`)
-            if (blur !== undefined) filters.push(`blur(${blur}px)`)
-            if (sepia) filters.push("sepia(100%)")
-            if (grayscale) filters.push("grayscale(100%)")
-
-            ctx.filter = filters.join(" ")
-          }
-
           // Draw the image
-          ctx.drawImage(
-            img,
-            sourceX, sourceY, sourceWidth, sourceHeight,
-            0, 0, canvas.width, canvas.height
-          )
-
-          // Add watermark if specified
-          if (options.watermarkText) {
-            await this.addWatermarkToCanvas(ctx, canvas, options.watermarkText, options)
-          }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
           // Convert to blob with proper format
           const quality = (options.quality || 90) / 100
-          const mimeType = `image/${options.outputFormat || "png"}`
+          const mimeType = `image/${options.outputFormat || "jpeg"}`
 
           canvas.toBlob((blob) => {
             if (blob) {
@@ -137,74 +84,127 @@ export class ImageProcessor {
   static async compressImage(file: File, options: ImageProcessingOptions): Promise<Blob> {
     const compressionOptions = {
       maxSizeMB: this.getMaxSizeMB(options.compressionLevel),
-      maxWidthOrHeight: options.width || options.height || 1920,
+      maxWidthOrHeight: 1920,
       useWebWorker: true,
       initialQuality: (options.quality || 80) / 100,
-      fileType: `image/${options.outputFormat || "jpeg"}` as any
+      fileType: "image/jpeg" as any
     }
 
     try {
       return await imageCompression(file, compressionOptions)
     } catch (error) {
       // Fallback to canvas compression
-      return this.processImage(file, options)
+      return this.resizeImage(file, options)
     }
-  }
-
-  static async resizeImage(file: File, options: ImageProcessingOptions): Promise<Blob> {
-    if (!options.width && !options.height) {
-      throw new Error("Width or height must be specified for resize")
-    }
-
-    return this.processImage(file, options)
   }
 
   static async cropImage(file: File, cropArea: { x: number; y: number; width: number; height: number }, options: ImageProcessingOptions = {}): Promise<Blob> {
-    return this.processImage(file, { ...options, cropArea })
-  }
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("Canvas not supported")
 
-  static async rotateImage(file: File, rotation: number, options: ImageProcessingOptions = {}): Promise<Blob> {
-    return this.processImage(file, { ...options, rotation })
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const { x, y, width, height } = cropArea
+        const cropX = (x / 100) * img.naturalWidth
+        const cropY = (y / 100) * img.naturalHeight
+        const cropWidth = (width / 100) * img.naturalWidth
+        const cropHeight = (height / 100) * img.naturalHeight
+
+        canvas.width = cropWidth
+        canvas.height = cropHeight
+
+        if (options.backgroundColor) {
+          ctx.fillStyle = options.backgroundColor
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        }
+
+        ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+
+        const quality = (options.quality || 95) / 100
+        const mimeType = `image/${options.outputFormat || "png"}`
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error("Failed to create blob"))
+          }
+        }, mimeType, quality)
+      }
+
+      img.onerror = () => reject(new Error("Failed to load image"))
+      img.src = URL.createObjectURL(file)
+    })
   }
 
   static async addWatermark(file: File, watermarkText: string, options: ImageProcessingOptions = {}): Promise<Blob> {
-    return this.processImage(file, { ...options, watermarkText })
-  }
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx || !watermarkText) throw new Error("Canvas not supported or watermark text not specified")
 
-  static async convertFormat(file: File, outputFormat: "jpeg" | "png" | "webp", options: ImageProcessingOptions = {}): Promise<Blob> {
-    return this.processImage(file, { ...options, outputFormat })
-  }
-
-  static async applyFilters(file: File, options: ImageProcessingOptions): Promise<Blob> {
     return new Promise((resolve, reject) => {
-      const canvas = document.createElement("canvas")
-      const ctx = canvas.getContext("2d")
-      if (!ctx || !options.filters) {
-        reject(new Error("Canvas not supported or no filters specified"))
-        return
-      }
-
       const img = new Image()
       img.onload = () => {
         canvas.width = img.naturalWidth
         canvas.height = img.naturalHeight
 
-        // Apply CSS filters
-        const filters = []
-        const { brightness, contrast, saturation, blur, sepia, grayscale } = options.filters
-
-        if (brightness !== undefined) filters.push(`brightness(${brightness}%)`)
-        if (contrast !== undefined) filters.push(`contrast(${contrast}%)`)
-        if (saturation !== undefined) filters.push(`saturate(${saturation}%)`)
-        if (blur !== undefined) filters.push(`blur(${blur}px)`)
-        if (sepia) filters.push("sepia(100%)")
-        if (grayscale) filters.push("grayscale(100%)")
-
-        ctx.filter = filters.join(" ")
         ctx.drawImage(img, 0, 0)
+
+        // Add watermark
+        const fontSize = Math.min(canvas.width, canvas.height) * 0.05
+        ctx.font = `${fontSize}px Arial`
+        ctx.fillStyle = `rgba(255, 255, 255, ${options.watermarkOpacity || 0.5})`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+
+        // Add text shadow for better visibility
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)"
+        ctx.shadowBlur = 4
+        ctx.shadowOffsetX = 2
+        ctx.shadowOffsetY = 2
+
+        ctx.fillText(watermarkText, canvas.width / 2, canvas.height / 2)
 
         const quality = (options.quality || 90) / 100
         const mimeType = `image/${options.outputFormat || "png"}`
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error("Failed to create blob"))
+          }
+        }, mimeType, quality)
+      }
+
+      img.onerror = () => reject(new Error("Failed to load image"))
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
+  static async convertFormat(file: File, outputFormat: "jpeg" | "png" | "webp", options: ImageProcessingOptions = {}): Promise<Blob> {
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("Canvas not supported")
+
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+
+        // Add background color for formats that don't support transparency
+        if (options.backgroundColor && outputFormat !== "png") {
+          ctx.fillStyle = options.backgroundColor
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        }
+
+        ctx.drawImage(img, 0, 0)
+
+        const quality = (options.quality || 90) / 100
+        const mimeType = `image/${outputFormat}`
 
         canvas.toBlob(
           (blob) => {
@@ -222,129 +222,6 @@ export class ImageProcessor {
       img.onerror = () => reject(new Error("Failed to load image"))
       img.src = URL.createObjectURL(file)
     })
-  }
-
-  static async removeBackground(file: File, options: ImageProcessingOptions = {}): Promise<Blob> {
-    // Simple background removal using edge detection
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")
-    if (!ctx) throw new Error("Canvas not supported")
-
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.onload = () => {
-        canvas.width = img.naturalWidth
-        canvas.height = img.naturalHeight
-        ctx.drawImage(img, 0, 0)
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const data = imageData.data
-
-        // Sample corner pixels for background color detection
-        const corners = [
-          this.getPixelColor(data, 0, 0, canvas.width),
-          this.getPixelColor(data, canvas.width - 1, 0, canvas.width),
-          this.getPixelColor(data, 0, canvas.height - 1, canvas.width),
-          this.getPixelColor(data, canvas.width - 1, canvas.height - 1, canvas.width)
-        ]
-
-        // Use most common corner color as background
-        const bgColor = corners[0]
-        const threshold = 40
-
-        // Remove similar colors
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i]
-          const g = data[i + 1]
-          const b = data[i + 2]
-
-          const colorDistance = Math.sqrt(
-            Math.pow(r - bgColor[0], 2) + 
-            Math.pow(g - bgColor[1], 2) + 
-            Math.pow(b - bgColor[2], 2)
-          )
-
-          if (colorDistance < threshold) {
-            data[i + 3] = 0 // Make transparent
-          }
-        }
-
-        ctx.putImageData(imageData, 0, 0)
-
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error("Failed to create blob"))
-          }
-        }, "image/png") // Always PNG for transparency
-      }
-
-      img.onerror = () => reject(new Error("Failed to load image"))
-      img.src = URL.createObjectURL(file)
-    })
-  }
-
-  private static getPixelColor(data: Uint8ClampedArray, x: number, y: number, width: number): [number, number, number] {
-    const index = (y * width + x) * 4
-    return [data[index], data[index + 1], data[index + 2]]
-  }
-
-  private static async addWatermarkToCanvas(
-    ctx: CanvasRenderingContext2D, 
-    canvas: HTMLCanvasElement, 
-    text: string, 
-    options: ImageProcessingOptions
-  ): Promise<void> {
-    const fontSize = Math.min(canvas.width, canvas.height) * 0.05
-    ctx.font = `${fontSize}px Arial`
-    ctx.fillStyle = `rgba(255, 255, 255, ${options.watermarkOpacity || 0.5})`
-    ctx.strokeStyle = `rgba(0, 0, 0, ${(options.watermarkOpacity || 0.5) * 0.5})`
-    ctx.lineWidth = 1
-
-    let x: number, y: number
-    
-    switch (options.watermarkPosition) {
-      case "top-left":
-        ctx.textAlign = "left"
-        ctx.textBaseline = "top"
-        x = 20
-        y = 20
-        break
-      case "top-right":
-        ctx.textAlign = "right"
-        ctx.textBaseline = "top"
-        x = canvas.width - 20
-        y = 20
-        break
-      case "bottom-left":
-        ctx.textAlign = "left"
-        ctx.textBaseline = "bottom"
-        x = 20
-        y = canvas.height - 20
-        break
-      case "bottom-right":
-        ctx.textAlign = "right"
-        ctx.textBaseline = "bottom"
-        x = canvas.width - 20
-        y = canvas.height - 20
-        break
-      default: // center
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        x = canvas.width / 2
-        y = canvas.height / 2
-        break
-    }
-
-    // Add shadow for better visibility
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)"
-    ctx.shadowBlur = 4
-    ctx.shadowOffsetX = 2
-    ctx.shadowOffsetY = 2
-
-    ctx.strokeText(text, x, y)
-    ctx.fillText(text, x, y)
   }
 
   private static getMaxSizeMB(level?: string): number {
