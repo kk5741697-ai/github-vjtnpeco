@@ -2,7 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { Scissors } from "lucide-react"
-import { ImageProcessor } from "@/lib/image-processor"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const backgroundRemovalOptions = [
   {
@@ -47,12 +47,18 @@ async function removeBackground(files: any[], options: any) {
         })
 
         const processedUrl = URL.createObjectURL(processedBlob)
+        
+        // Always PNG for transparency
+        const baseName = file.name.split(".")[0]
+        const newName = `${baseName}.png`
 
         return {
           ...file,
           processed: true,
           processedPreview: processedUrl,
+          name: newName,
           size: processedBlob.size,
+          blob: processedBlob
         }
       }),
     )

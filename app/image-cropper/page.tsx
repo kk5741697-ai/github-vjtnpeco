@@ -50,11 +50,17 @@ async function cropImages(files: any[], options: any) {
         )
 
         const processedUrl = URL.createObjectURL(processedBlob)
+        
+        // Update file name with correct extension
+        const outputFormat = options.outputFormat || "png"
+        const baseName = file.name.split(".")[0]
+        const newName = `${baseName}.${outputFormat}`
 
         return {
           ...file,
           processed: true,
           processedPreview: processedUrl,
+          name: newName,
           processedSize: processedBlob.size,
           blob: processedBlob
         }

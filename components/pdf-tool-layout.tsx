@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Progress } from "@/components/ui/progress"
+import { AdBanner } from "@/components/ads/ad-banner"
 import { 
   Upload, 
   Download, 
@@ -25,13 +26,15 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  Menu
+  Menu,
+  ArrowLeft
 } from "lucide-react"
 import { useFileUpload } from "@/hooks/use-file-upload"
 import { useDownloadManager } from "@/hooks/use-download-manager"
 import { PDFProcessor } from "@/lib/processors/pdf-processor"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
+import Link from "next/link"
 
 interface PDFFile {
   id: string
@@ -95,6 +98,7 @@ export function PDFToolLayout({
   const [extractMode, setExtractMode] = useState<"all" | "selected">("selected")
   const [zoom, setZoom] = useState(100)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Initialize options with defaults
@@ -215,20 +219,6 @@ export function PDFToolLayout({
     }))
   }
 
-  const addPageRange = () => {
-    setPageRanges(prev => [...prev, { from: 1, to: 1 }])
-  }
-
-  const updatePageRange = (index: number, field: "from" | "to", value: number) => {
-    setPageRanges(prev => prev.map((range, i) => 
-      i === index ? { ...range, [field]: value } : range
-    ))
-  }
-
-  const removePageRange = (index: number) => {
-    setPageRanges(prev => prev.filter((_, i) => i !== index))
-  }
-
   const handleProcess = async () => {
     if (files.length === 0) {
       toast({
@@ -313,7 +303,15 @@ export function PDFToolLayout({
         {/* Canvas Header */}
         <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+            <Link href="/">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div className="flex items-center space-x-2">
+              <Icon className="h-5 w-5 text-red-600" />
+              <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+            </div>
             <Badge variant="secondary">{files.length} files</Badge>
           </div>
           <div className="flex items-center space-x-2">
@@ -326,6 +324,23 @@ export function PDFToolLayout({
             </Button>
             <Button 
               variant="outline" 
+              size="sm"
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {allowBatchProcessing && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add More
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
               size="sm" 
               className="lg:hidden"
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -336,170 +351,162 @@ export function PDFToolLayout({
         </div>
 
         {/* Canvas Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto">
           {files.length === 0 ? (
-            <div 
-              className="h-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors"
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-16 w-16 mb-4 text-gray-400" />
-              <h3 className="text-xl font-medium mb-2">Drop PDF files here</h3>
-              <p className="text-gray-400 mb-4">or click to browse</p>
-              <Button>
-                <Upload className="h-4 w-4 mr-2" />
-                Choose Files
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                multiple={maxFiles > 1}
-                onChange={(e) => handleFileUpload(e.target.files)}
-                className="hidden"
-              />
+            <div className="h-full flex flex-col">
+              {/* Ad Banner */}
+              <div className="p-4">
+                <AdBanner position="header" showLabel />
+              </div>
+              
+              <div className="flex-1 flex items-center justify-center p-6">
+                <div 
+                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors p-12"
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-16 w-16 mb-4 text-gray-400" />
+                  <h3 className="text-xl font-medium mb-2">Drop PDF files here</h3>
+                  <p className="text-gray-400 mb-4">or click to browse</p>
+                  <Button>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Choose Files
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
-            <DragDropContext onDragEnd={onDragEnd}>
-              <div className="space-y-8">
-                {files.map((file, fileIndex) => (
-                  <div key={file.id} className="bg-white rounded-lg shadow-sm border">
-                    {/* File Header */}
-                    <div className="px-6 py-4 border-b bg-gray-50 rounded-t-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-red-600" />
-                          <div>
-                            <h3 className="font-medium text-gray-900">{file.name}</h3>
-                            <p className="text-sm text-gray-500">
-                              {file.pageCount} pages • {(file.size / 1024 / 1024).toFixed(1)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {allowPageSelection && (
-                            <>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => selectAllPages(file.id)}
-                              >
-                                Select All
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => deselectAllPages(file.id)}
-                              >
-                                Deselect All
-                              </Button>
-                            </>
-                          )}
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => removeFile(file.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pages Grid */}
-                    <Droppable droppableId={`file-${fileIndex}`} direction="horizontal">
-                      {(provided) => (
-                        <div 
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className="p-6"
-                        >
-                          <div 
-                            className="grid gap-4 auto-fit-[minmax(150px,1fr)]"
-                            style={{ 
-                              gridTemplateColumns: `repeat(auto-fit, minmax(${150 * (zoom / 100)}px, 1fr))` 
-                            }}
-                          >
-                            {file.pages.map((page, pageIndex) => (
-                              <Draggable 
-                                key={`${file.id}-${page.pageNumber}`}
-                                draggableId={`${file.id}-${page.pageNumber}`}
-                                index={pageIndex}
-                                isDragDisabled={!allowPageReorder}
-                              >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`relative group cursor-pointer transition-all duration-200 ${
-                                      snapshot.isDragging ? "scale-105 shadow-lg" : ""
-                                    }`}
-                                  >
-                                    <div 
-                                      className={`relative border-2 rounded-lg overflow-hidden transition-all ${
-                                        page.selected 
-                                          ? "border-red-500 bg-red-50" 
-                                          : "border-gray-200 hover:border-gray-300"
-                                      }`}
-                                      onClick={() => allowPageSelection && togglePageSelection(file.id, page.pageNumber)}
-                                    >
-                                      {/* Page Thumbnail */}
-                                      <div className="aspect-[3/4] bg-white">
-                                        <img 
-                                          src={page.thumbnail}
-                                          alt={`Page ${page.pageNumber}`}
-                                          className="w-full h-full object-contain"
-                                          style={{ transform: `scale(${zoom / 100})` }}
-                                        />
-                                      </div>
-
-                                      {/* Page Number */}
-                                      <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-                                        <Badge variant="secondary" className="text-xs">
-                                          {page.pageNumber}
-                                        </Badge>
-                                      </div>
-
-                                      {/* Selection Indicator */}
-                                      {allowPageSelection && (
-                                        <div className="absolute top-2 right-2">
-                                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                            page.selected 
-                                              ? "bg-red-500 border-red-500" 
-                                              : "bg-white border-gray-300"
-                                          }`}>
-                                            {page.selected && <CheckCircle className="h-3 w-3 text-white" />}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Hover Actions */}
-                                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                        <div className="flex space-x-2">
-                                          <Button size="sm" variant="secondary">
-                                            <Eye className="h-4 w-4" />
-                                          </Button>
-                                          <Button size="sm" variant="secondary">
-                                            <RotateCw className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
-                          </div>
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </div>
-                ))}
+            <div className="h-full flex flex-col">
+              {/* Ad Banner */}
+              <div className="p-4 border-b">
+                <AdBanner position="inline" showLabel />
               </div>
-            </DragDropContext>
+
+              <div className="flex-1 p-6">
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="space-y-8">
+                    {files.map((file, fileIndex) => (
+                      <div key={file.id} className="bg-white rounded-lg shadow-sm border">
+                        {/* File Header */}
+                        <div className="px-6 py-4 border-b bg-gray-50 rounded-t-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <FileText className="h-5 w-5 text-red-600" />
+                              <div>
+                                <h3 className="font-medium text-gray-900">{file.name}</h3>
+                                <p className="text-sm text-gray-500">
+                                  {file.pageCount} pages • {(file.size / 1024 / 1024).toFixed(1)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {allowPageSelection && (
+                                <>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => selectAllPages(file.id)}
+                                  >
+                                    Select All
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => deselectAllPages(file.id)}
+                                  >
+                                    Deselect All
+                                  </Button>
+                                </>
+                              )}
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => removeFile(file.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pages Grid */}
+                        <Droppable droppableId={`file-${fileIndex}`} direction="horizontal">
+                          {(provided) => (
+                            <div 
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              className="p-6"
+                            >
+                              <div className="grid gap-4 auto-fit-[minmax(120px,1fr)]">
+                                {file.pages.map((page, pageIndex) => (
+                                  <Draggable 
+                                    key={`${file.id}-${page.pageNumber}`}
+                                    draggableId={`${file.id}-${page.pageNumber}`}
+                                    index={pageIndex}
+                                    isDragDisabled={!allowPageReorder}
+                                  >
+                                    {(provided, snapshot) => (
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        {...provided.dragHandleProps}
+                                        className={`relative group cursor-pointer transition-all duration-200 ${
+                                          snapshot.isDragging ? "scale-105 shadow-lg" : ""
+                                        }`}
+                                      >
+                                        <div 
+                                          className={`relative border-2 rounded-lg overflow-hidden transition-all ${
+                                            page.selected 
+                                              ? "border-red-500 bg-red-50" 
+                                              : "border-gray-200 hover:border-gray-300"
+                                          }`}
+                                          onClick={() => allowPageSelection && togglePageSelection(file.id, page.pageNumber)}
+                                        >
+                                          {/* Page Thumbnail */}
+                                          <div className="aspect-[3/4] bg-white">
+                                            <img 
+                                              src={page.thumbnail}
+                                              alt={`Page ${page.pageNumber}`}
+                                              className="w-full h-full object-contain"
+                                            />
+                                          </div>
+
+                                          {/* Page Number */}
+                                          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
+                                            <Badge variant="secondary" className="text-xs">
+                                              {page.pageNumber}
+                                            </Badge>
+                                          </div>
+
+                                          {/* Selection Indicator */}
+                                          {allowPageSelection && (
+                                            <div className="absolute top-2 right-2">
+                                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                                page.selected 
+                                                  ? "bg-red-500 border-red-500" 
+                                                  : "bg-white border-gray-300"
+                                              }`}>
+                                                {page.selected && <CheckCircle className="h-3 w-3 text-white" />}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Draggable>
+                                ))}
+                              </div>
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </div>
+                    ))}
+                  </div>
+                </DragDropContext>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -590,52 +597,6 @@ export function PDFToolLayout({
                   </Button>
                 </div>
               </div>
-
-              {/* Page Ranges (for range mode) */}
-              {splitMode === "range" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-base font-medium">Page Ranges</Label>
-                    <Button variant="outline" size="sm" onClick={addPageRange}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Range
-                    </Button>
-                  </div>
-                  {pageRanges.map((range, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-600 w-16">Range {index + 1}</span>
-                      <Input
-                        type="number"
-                        placeholder="from page"
-                        value={range.from}
-                        onChange={(e) => updatePageRange(index, "from", parseInt(e.target.value) || 1)}
-                        className="w-20"
-                        min={1}
-                        max={files[0]?.pageCount || 1}
-                      />
-                      <span className="text-gray-400">to</span>
-                      <Input
-                        type="number"
-                        placeholder="to"
-                        value={range.to}
-                        onChange={(e) => updatePageRange(index, "to", parseInt(e.target.value) || 1)}
-                        className="w-20"
-                        min={range.from}
-                        max={files[0]?.pageCount || 1}
-                      />
-                      {pageRanges.length > 1 && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => removePageRange(index)}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Selection Info */}
               {extractMode === "selected" && (
@@ -735,6 +696,11 @@ export function PDFToolLayout({
               )}
             </div>
           ))}
+
+          {/* Ad Space */}
+          <div className="py-4">
+            <AdBanner position="sidebar" showLabel />
+          </div>
         </div>
 
         {/* Sidebar Footer */}

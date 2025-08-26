@@ -1,4 +1,4 @@
-import { compress } from "browser-image-compression"
+import imageCompression from "browser-image-compression"
 import Pica from "pica"
 
 export interface ImageProcessingOptions {
@@ -112,7 +112,7 @@ export class ImageProcessor {
             await this.addWatermarkToCanvas(ctx, canvas, options.watermarkText, options)
           }
 
-          // Convert to blob
+          // Convert to blob with proper format
           const quality = (options.quality || 90) / 100
           const mimeType = `image/${options.outputFormat || "png"}`
 
@@ -139,12 +139,12 @@ export class ImageProcessor {
       maxSizeMB: this.getMaxSizeMB(options.compressionLevel),
       maxWidthOrHeight: options.width || options.height || 1920,
       useWebWorker: true,
-      quality: (options.quality || 80) / 100,
+      initialQuality: (options.quality || 80) / 100,
       fileType: `image/${options.outputFormat || "jpeg"}` as any
     }
 
     try {
-      return await compress(file, compressionOptions)
+      return await imageCompression(file, compressionOptions)
     } catch (error) {
       // Fallback to canvas compression
       return this.processImage(file, options)
@@ -156,60 +156,7 @@ export class ImageProcessor {
       throw new Error("Width or height must be specified for resize")
     }
 
-    // Use Pica for high-quality resizing
-    const canvas = document.createElement("canvas")
-    const img = document.createElement("img")
-
-    return new Promise((resolve, reject) => {
-      img.onload = async () => {
-        try {
-          let { width: targetWidth, height: targetHeight } = options
-          const { naturalWidth: originalWidth, naturalHeight: originalHeight } = img
-
-          if (options.maintainAspectRatio && targetWidth && targetHeight) {
-            const aspectRatio = originalWidth / originalHeight
-            if (targetWidth / targetHeight > aspectRatio) {
-              targetWidth = targetHeight * aspectRatio
-            } else {
-              targetHeight = targetWidth / aspectRatio
-            }
-          } else if (targetWidth && !targetHeight) {
-            targetHeight = (targetWidth / originalWidth) * originalHeight
-          } else if (targetHeight && !targetWidth) {
-            targetWidth = (targetHeight / originalHeight) * originalWidth
-          }
-
-          canvas.width = targetWidth!
-          canvas.height = targetHeight!
-
-          // Use Pica for high-quality resize
-          const resizedCanvas = await this.pica.resize(img, canvas, {
-            quality: 3,
-            alpha: true,
-            unsharpAmount: 80,
-            unsharpRadius: 0.6,
-            unsharpThreshold: 2
-          })
-
-          const quality = (options.quality || 90) / 100
-          const mimeType = `image/${options.outputFormat || "png"}`
-
-          resizedCanvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob)
-            } else {
-              reject(new Error("Failed to create blob"))
-            }
-          }, mimeType, quality)
-
-        } catch (error) {
-          reject(error)
-        }
-      }
-
-      img.onerror = () => reject(new Error("Failed to load image"))
-      img.src = URL.createObjectURL(file)
-    })
+    return this.processImage(file, options)
   }
 
   static async cropImage(file: File, cropArea: { x: number; y: number; width: number; height: number }, options: ImageProcessingOptions = {}): Promise<Blob> {

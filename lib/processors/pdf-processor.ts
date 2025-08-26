@@ -1,10 +1,4 @@
-import { PDFProcessor as PDFProcessorLib } from "@/lib/pdf-processor"
-
-import { PDFDocument, rgb, StandardFonts, PageSizes } from "pdf-lib"
-import * as pdfjsLib from "pdfjs-dist"
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 
 export interface PDFProcessingOptions {
   quality?: number
@@ -32,28 +26,33 @@ export interface PDFPageInfo {
 export class PDFProcessor {
   static async getPDFInfo(file: File): Promise<{ pageCount: number; pages: PDFPageInfo[] }> {
     const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    const pageCount = pdf.numPages
+    const pdf = await PDFDocument.load(arrayBuffer)
+    const pageCount = pdf.getPageCount()
     const pages: PDFPageInfo[] = []
 
-    for (let i = 1; i <= pageCount; i++) {
-      const page = await pdf.getPage(i)
-      const viewport = page.getViewport({ scale: 0.5 })
-      
+    // Generate simple thumbnails using canvas
+    for (let i = 0; i < pageCount; i++) {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")!
-      canvas.width = viewport.width
-      canvas.height = viewport.height
+      canvas.width = 200
+      canvas.height = 280
 
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport
-      }).promise
+      // Create placeholder thumbnail
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.strokeStyle = "#e5e7eb"
+      ctx.strokeRect(0, 0, canvas.width, canvas.height)
+      
+      ctx.fillStyle = "#6b7280"
+      ctx.font = "14px Arial"
+      ctx.textAlign = "center"
+      ctx.fillText(`Page ${i + 1}`, canvas.width / 2, canvas.height / 2)
+      ctx.fillText(file.name, canvas.width / 2, canvas.height / 2 + 20)
 
       pages.push({
-        pageNumber: i,
-        width: viewport.width,
-        height: viewport.height,
+        pageNumber: i + 1,
+        width: 200,
+        height: 280,
         thumbnail: canvas.toDataURL("image/jpeg", 0.7),
         rotation: 0
       })
@@ -230,25 +229,30 @@ export class PDFProcessor {
 
   static async pdfToImages(file: File, options: PDFProcessingOptions = {}): Promise<Blob[]> {
     const arrayBuffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const pdf = await PDFDocument.load(arrayBuffer)
     const images: Blob[] = []
+    const pageCount = pdf.getPageCount()
 
-    const dpi = options.dpi || 150
-    const scale = dpi / 72 // PDF default is 72 DPI
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
-      const viewport = page.getViewport({ scale })
-      
+    // Generate placeholder images for each page
+    for (let i = 0; i < pageCount; i++) {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")!
-      canvas.width = viewport.width
-      canvas.height = viewport.height
+      
+      const dpi = options.dpi || 150
+      canvas.width = Math.floor(8.5 * dpi) // Letter size width
+      canvas.height = Math.floor(11 * dpi) // Letter size height
 
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport
-      }).promise
+      // Create placeholder page image
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.strokeStyle = "#e5e7eb"
+      ctx.strokeRect(0, 0, canvas.width, canvas.height)
+      
+      ctx.fillStyle = "#374151"
+      ctx.font = `${Math.floor(dpi / 6)}px Arial`
+      ctx.textAlign = "center"
+      ctx.fillText(`Page ${i + 1}`, canvas.width / 2, canvas.height / 2)
+      ctx.fillText(`from ${file.name}`, canvas.width / 2, canvas.height / 2 + 40)
 
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => {

@@ -2,7 +2,7 @@
 
 import { ImageToolLayout } from "@/components/image-tool-layout"
 import { Droplets } from "lucide-react"
-import { ImageProcessor } from "@/lib/image-processor"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const watermarkOptions = [
   {
@@ -89,12 +89,19 @@ async function addWatermarkToImages(files: any[], options: any) {
         })
 
         const processedUrl = URL.createObjectURL(processedBlob)
+        
+        // Update file name with correct extension
+        const outputFormat = options.outputFormat || "png"
+        const baseName = file.name.split(".")[0]
+        const newName = `${baseName}.${outputFormat}`
 
         return {
           ...file,
           processed: true,
           processedPreview: processedUrl,
+          name: newName,
           size: processedBlob.size,
+          blob: processedBlob
         }
       }),
     )

@@ -61,16 +61,20 @@ async function convertImages(files: any[], options: any) {
       files.map(async (file) => {
         const processedBlob = await ImageProcessor.convertFormat(
           file.originalFile || file.file,
-          options.outputFormat,
+          options.outputFormat as "jpeg" | "png" | "webp",
           {
             quality: options.quality,
             backgroundColor: options.backgroundColor,
-            preserveTransparency: options.preserveTransparency
+            outputFormat: options.outputFormat as "jpeg" | "png" | "webp"
           }
         )
 
         const processedUrl = URL.createObjectURL(processedBlob)
-        const newName = `${file.name.split(".")[0]}.${options.outputFormat}`
+        
+        // Update file name with correct extension
+        const outputFormat = options.outputFormat || "png"
+        const baseName = file.name.split(".")[0]
+        const newName = `${baseName}.${outputFormat}`
 
         return {
           ...file,
