@@ -7,3 +7,77 @@ No duplicate or irrelevant options → only show what’s needed for the tool co
 Keep UI consistent and intuitive: both beginners and professionals should complete tasks without tutorials.
 
 Preview canvas & sidebar should be scalable and reusable for 2000+ tools.
+
+I am building an advanced Image/PDF tools platform (similar to ilovepdf.com and iloveimg.com), but I want to make it the best in the world with 2k+ tools planned in the future.
+Currently, my layout is:
+
+Left side canvas/preview (main working area for image/PDF).
+
+Right sidebar tools/options (inputs, sliders, selectors, settings, presets, etc) but keep in minimun which are essentials only, other things can be done from the left side canvas/preview.
+This base structure is good, but I want it to be much richer, easier, faster, and more interactive for users.
+
+🔹 Current Tools to Complete & Optimize
+
+Image Tools
+
+Background Remover
+
+Image Compressor
+
+Image Converter (JPG ⇄ PNG ⇄ WebP, etc.)
+
+Image Cropper (⚠️ only single file allowed for precision cropping, with adjustable transform handles as like iloveimg.com)
+
+Image Resizer (with presets like % scaling, pixel input, aspect ratio lock/unlock (1 input changed to other will be auto updated), social media sizes)
+
+Image Rotator/Flipper
+
+Image to PDF
+
+Image Watermark (text + logo watermark, opacity, position, repeat pattern option)
+
+PDF Tools
+
+PDF Compressor
+
+PDF Merger
+
+PDF Password Protector (lock/unlock)
+
+PDF Splitter (by pages, range, bookmarks)
+
+PDF to Image (select resolution/quality, export as ZIP if multiple pages)
+
+PDF Watermark (text + image watermark, position, opacity, tiling option)
+
+🔹 Enhancements & UX/UI Improvements
+
+Responsive & Mobile-first UX: Ensure every tool works seamlessly on mobile/tablet with gestures (pinch-to-zoom, drag, rotate with touch).
+
+Live Preview Always Visible: The canvas should instantly reflect all edits/changes (no hidden steps).
+
+Drag & Drop Everywhere: Support drag-and-drop for uploads, rearranging PDF pages, resizing images, and placing watermarks.
+
+Undo/Redo + Reset Tool: Every tool should have quick undo, redo, and reset options for safety.
+
+Smart Auto-Save: Work-in-progress is cached in browser (local storage) so users don’t lose progress.
+
+Prebuilt Presets/Templates: For common use cases (e.g., Instagram story crop, YouTube thumbnail resize, LinkedIn profile size, A4 PDF export).
+
+Multi-language & RTL Support for global adoption.
+
+Loading/Processing UX: Instead of boring loaders, use skeleton previews or animated progress with estimated time.
+
+Multi-file batch support where it makes sense (e.g., compression, conversion, merging) but keep single-file only for precision tools (e.g., cropping, watermark placement, page editing).
+
+Cloud Save & Share: Export to Google Drive, Dropbox, or share via link.
+
+🔹 Special Notes
+
+For cropper and other single-image tools, restrict to only one file at a time to avoid messy crop regions.
+
+Ensure transform controls are smooth (resize handles, drag area, rotate angle).
+
+All tools should feel like professional desktop apps but simple enough for a beginner.
+
+Always prioritize essential, useful functionality over adding "just another option." and keep options in canvas/preview  for better expreience by adjusting or button clicking not with manual input only - this makes more dificulties.
