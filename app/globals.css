@@ -153,7 +153,7 @@
 
 /* Enhanced crop overlay */
 .crop-overlay {
-  @apply absolute border-2 border-blue-500 bg-blue-500 bg-opacity-20 pointer-events-none;
+  @apply absolute border-2 border-blue-500 bg-blue-500/20 pointer-events-none;
 }
 
 .crop-handle {

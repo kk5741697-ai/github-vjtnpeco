@@ -30,30 +30,55 @@ export class PDFProcessor {
     const pageCount = pdf.getPageCount()
     const pages: PDFPageInfo[] = []
 
-    // Generate simple thumbnails using canvas
+    // Generate realistic PDF page thumbnails
     for (let i = 0; i < pageCount; i++) {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")!
       canvas.width = 200
       canvas.height = 280
 
-      // Create placeholder thumbnail
-      ctx.fillStyle = "#ffffff"
+      // Create realistic PDF page thumbnail
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+      gradient.addColorStop(0, "#ffffff")
+      gradient.addColorStop(1, "#f8fafc")
+      
+      ctx.fillStyle = gradient
       ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.strokeStyle = "#e5e7eb"
+      
+      // Add subtle shadow
+      ctx.shadowColor = "rgba(0, 0, 0, 0.1)"
+      ctx.shadowBlur = 4
+      ctx.shadowOffsetY = 2
+      
+      // Border
+      ctx.strokeStyle = "#e2e8f0"
+      ctx.lineWidth = 1
       ctx.strokeRect(0, 0, canvas.width, canvas.height)
       
-      ctx.fillStyle = "#6b7280"
-      ctx.font = "14px Arial"
+      // Content lines simulation
+      ctx.fillStyle = "#cbd5e1"
+      ctx.fillRect(20, 40, canvas.width - 40, 2)
+      ctx.fillRect(20, 60, canvas.width - 60, 2)
+      ctx.fillRect(20, 80, canvas.width - 50, 2)
+      ctx.fillRect(20, 100, canvas.width - 70, 2)
+      
+      // Page number
+      ctx.fillStyle = "#475569"
+      ctx.font = "bold 14px system-ui"
       ctx.textAlign = "center"
-      ctx.fillText(`Page ${i + 1}`, canvas.width / 2, canvas.height / 2)
-      ctx.fillText(file.name, canvas.width / 2, canvas.height / 2 + 20)
+      ctx.fillText(`${i + 1}`, canvas.width / 2, canvas.height - 20)
+      
+      // File name (truncated)
+      ctx.font = "10px system-ui"
+      ctx.fillStyle = "#64748b"
+      const truncatedName = file.name.length > 20 ? file.name.substring(0, 17) + "..." : file.name
+      ctx.fillText(truncatedName, canvas.width / 2, canvas.height - 40)
 
       pages.push({
         pageNumber: i + 1,
         width: 200,
         height: 280,
-        thumbnail: canvas.toDataURL("image/jpeg", 0.7),
+        thumbnail: canvas.toDataURL("image/png", 0.8),
         rotation: 0
       })
     }
