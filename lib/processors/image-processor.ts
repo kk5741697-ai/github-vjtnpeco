@@ -175,6 +175,55 @@ export class ImageProcessor {
     return this.processImage(file, { ...options, outputFormat })
   }
 
+  static async applyFilters(file: File, options: ImageProcessingOptions): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx || !options.filters) {
+        reject(new Error("Canvas not supported or no filters specified"))
+        return
+      }
+
+      const img = new Image()
+      img.onload = () => {
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+
+        // Apply CSS filters
+        const filters = []
+        const { brightness, contrast, saturation, blur, sepia, grayscale } = options.filters
+
+        if (brightness !== undefined) filters.push(`brightness(${brightness}%)`)
+        if (contrast !== undefined) filters.push(`contrast(${contrast}%)`)
+        if (saturation !== undefined) filters.push(`saturate(${saturation}%)`)
+        if (blur !== undefined) filters.push(`blur(${blur}px)`)
+        if (sepia) filters.push("sepia(100%)")
+        if (grayscale) filters.push("grayscale(100%)")
+
+        ctx.filter = filters.join(" ")
+        ctx.drawImage(img, 0, 0)
+
+        const quality = (options.quality || 90) / 100
+        const mimeType = `image/${options.outputFormat || "png"}`
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob)
+            } else {
+              reject(new Error("Failed to create blob"))
+            }
+          },
+          mimeType,
+          quality,
+        )
+      }
+
+      img.onerror = () => reject(new Error("Failed to load image"))
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   static async removeBackground(file: File, options: ImageProcessingOptions = {}): Promise<Blob> {
     // Simple background removal using edge detection
     const canvas = document.createElement("canvas")
