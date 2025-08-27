@@ -225,8 +225,12 @@ export default function HomePage() {
       </div>
     )
   }
+import { headers } from 'next/headers';
 
-  // Default global domain layout
+export default async function Home() {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'pixoratools.com';
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -334,6 +338,6 @@ export default function HomePage() {
           <p className="text-sm text-gray-500">© PixoraTools 2025 ® - Your Online Tool Editor</p>
         </div>
       </footer>
-    </div>
+    <DomainHomepage domain={host} />
   )
 }
