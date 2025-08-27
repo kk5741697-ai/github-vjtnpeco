@@ -1,10 +1,13 @@
-import { headers } from "next/headers"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { DomainHeader } from "@/components/domain-header"
 import { DomainHomepage } from "@/components/domain-homepage"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Maximize, Crop, FileImage, ArrowUpDown, Edit3, Zap, ImageIcon, Download, Palette, Upload, Archive } from "lucide-react"
+import { Maximize, Crop, FileImage, ArrowUpDown, Edit3, Zap, ImageIcon, Download, Palette, Upload, Archive, Search } from "lucide-react"
 import Link from "next/link"
 import { getDomainConfig } from "@/lib/domain-config"
 
@@ -62,7 +65,7 @@ const featuredTools = [
     title: "Upscale Image",
     description:
       "Enlarge your images with high resolution. Easily increase the size of your JPG and PNG images while maintaining visual quality.",
-    href: "/image-resizer",
+    href: "/image-upscaler",
     icon: Zap,
     iconBg: "bg-green-100",
     iconColor: "text-green-600",
@@ -106,10 +109,32 @@ const categories = [
   { name: "Security", active: false },
 ]
 
-export default async function HomePage() {
-  const headersList = await headers()
-  const host = headersList.get("host") || "pixoratools.com"
+export default function HomePage() {
+  const [host, setHost] = useState("pixoratools.com")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [activeCategory, setActiveCategory] = useState("All")
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHost(window.location.hostname)
+    }
+  }, [])
+
   const domainConfig = getDomainConfig(host)
+
+  // Filter tools based on search and category
+  const filteredTools = featuredTools.filter(tool => {
+    const matchesSearch = tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = activeCategory === "All" || 
+                           (activeCategory === "Optimize" && (tool.title.includes("Compress") || tool.title.includes("Resize"))) ||
+                           (activeCategory === "Create" && (tool.title.includes("generator") || tool.title.includes("Meme"))) ||
+                           (activeCategory === "Edit" && (tool.title.includes("editor") || tool.title.includes("Crop") || tool.title.includes("Watermark"))) ||
+                           (activeCategory === "Convert" && tool.title.includes("Convert")) ||
+                           (activeCategory === "Security" && tool.title.includes("Remove"))
+    
+    return matchesSearch && matchesCategory
+  })
 
   // Domain-specific tool configurations
   const domainTools = {

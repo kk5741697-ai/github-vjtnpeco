@@ -1,6 +1,6 @@
 "use client"
 
-import { SimpleImageToolLayout } from "@/components/simple-image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Crop } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -70,17 +70,15 @@ async function cropImages(files: any[], options: any) {
 
 export default function ImageCropperPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Crop IMAGE"
       description="Crop JPG, PNG, or GIFs with ease. Choose pixels to define your rectangle or use our visual editor."
       icon={Crop}
       toolType="crop"
       processFunction={cropImages}
       options={cropOptions}
-      singleFileOnly={true}
+      maxFiles={1}
       presets={cropPresets}
-      supportedFormats={["image/jpeg", "image/png", "image/gif", "image/webp"]}
-      outputFormats={["png"]}
     />
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { RefreshCw } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -101,7 +101,7 @@ async function convertImages(files: any[], options: any) {
 
 export default function ImageConverterPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Image Converter"
       description="Convert images between different formats including JPEG, PNG, WebP, GIF, BMP, and TIFF. Preserve quality and transparency as needed."
       icon={RefreshCw}
@@ -110,8 +110,6 @@ export default function ImageConverterPage() {
       options={convertOptions}
       maxFiles={15}
       allowBatchProcessing={true}
-      supportedFormats={["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"]}
-      outputFormats={["jpeg", "png", "webp", "gif", "bmp", "tiff"]}
     />
   )
 }
