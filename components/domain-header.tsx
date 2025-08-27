@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,36 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useRouter } from "next/navigation"
+
+const allTools = [
+  { name: 'Background Remover', href: '/background-remover', category: 'Image Tools' },
+  { name: 'Image Compressor', href: '/image-compressor', category: 'Image Tools' },
+  { name: 'Image Converter', href: '/image-converter', category: 'Image Tools' },
+  { name: 'Image Cropper', href: '/image-cropper', category: 'Image Tools' },
+  { name: 'Image Resizer', href: '/image-resizer', category: 'Image Tools' },
+  { name: 'Image Rotator', href: '/image-rotator', category: 'Image Tools' },
+  { name: 'Image Watermark', href: '/image-watermark', category: 'Image Tools' },
+  { name: 'Image Filters', href: '/image-filters', category: 'Image Tools' },
+  { name: 'PDF Merger', href: '/pdf-merger', category: 'PDF Tools' },
+  { name: 'PDF Splitter', href: '/pdf-splitter', category: 'PDF Tools' },
+  { name: 'PDF Compressor', href: '/pdf-compressor', category: 'PDF Tools' },
+  { name: 'PDF Password Protector', href: '/pdf-password-protector', category: 'PDF Tools' },
+  { name: 'PDF Unlock', href: '/pdf-unlock', category: 'PDF Tools' },
+  { name: 'PDF to Image', href: '/pdf-to-image', category: 'PDF Tools' },
+  { name: 'PDF Watermark', href: '/pdf-watermark', category: 'PDF Tools' },
+  { name: 'QR Code Generator', href: '/qr-code-generator', category: 'QR Tools' },
+  { name: 'QR Scanner', href: '/qr-scanner', category: 'QR Tools' },
+  { name: 'Password Generator', href: '/password-generator', category: 'Utilities' },
+  { name: 'URL Encoder', href: '/url-encoder', category: 'Network Tools' },
+  { name: 'Base64 Encoder', href: '/base64-encoder', category: 'Network Tools' },
+  { name: 'Hash Generator', href: '/hash-generator', category: 'Network Tools' },
+  { name: 'SEO Meta Generator', href: '/seo-meta-generator', category: 'SEO Tools' },
+  { name: 'JSON Formatter', href: '/json-formatter', category: 'Code Tools' },
+  { name: 'Text Case Converter', href: '/text-case-converter', category: 'Code Tools' },
+];
 
 interface DomainHeaderProps {
   domain: string
@@ -23,6 +53,23 @@ interface DomainHeaderProps {
 export function DomainHeader({ domain, brandName, primaryColor, tools, moreTools = [] }: DomainHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const router = useRouter()
+
+  const filteredTools = useMemo(() => {
+    if (!searchQuery) return allTools.slice(0, 8); // Show top 8 tools when no search
+    
+    return allTools.filter(tool =>
+      tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tool.category.toLowerCase().includes(searchQuery.toLowerCase())
+    ).slice(0, 10); // Limit to 10 results
+  }, [searchQuery]);
+
+  const handleToolSelect = (href: string) => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    router.push(href);
+  };
 
   return (
     <header className="w-full bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -38,16 +85,44 @@ export function DomainHeader({ domain, brandName, primaryColor, tools, moreTools
 
           {/* Search Bar - Desktop */}
           <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search tools..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4"
-              />
-            </div>
+            <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search tools..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setSearchOpen(true)}
+                    className="pl-10 pr-4 bg-gray-50 border-gray-200 focus:bg-white"
+                  />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    {filteredTools.length === 0 ? (
+                      <CommandEmpty>No tools found.</CommandEmpty>
+                    ) : (
+                      <CommandGroup>
+                        {filteredTools.map((tool) => (
+                          <CommandItem
+                            key={tool.href}
+                            onSelect={() => handleToolSelect(tool.href)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{tool.name}</span>
+                              <span className="text-sm text-gray-500">{tool.category}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <nav className="hidden lg:flex items-center space-x-6">
@@ -110,9 +185,45 @@ export function DomainHeader({ domain, brandName, primaryColor, tools, moreTools
           </div>
 
           {/* Mobile menu button */}
-          <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Mobile Search Button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="md:hidden">
+                  <Search className="w-5 h-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                <Command>
+                  <CommandInput placeholder="Search tools..." />
+                  <CommandList>
+                    {filteredTools.length === 0 ? (
+                      <CommandEmpty>No tools found.</CommandEmpty>
+                    ) : (
+                      <CommandGroup>
+                        {filteredTools.map((tool) => (
+                          <CommandItem
+                            key={tool.href}
+                            onSelect={() => handleToolSelect(tool.href)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{tool.name}</span>
+                              <span className="text-sm text-gray-500">{tool.category}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            
+            <Button variant="ghost" size="sm" className="lg:hidden ml-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
         {/* Mobile Search */}
