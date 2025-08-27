@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter, Poppins } from "next/font/google"
 import "./globals.css"
-import { headers } from 'next/headers'
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,9 +29,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const headersList = await headers();
-  const host = headersList.get('host') || 'pixoratools.com';
-  
   return (
     <html lang="en">
       <body className={`${inter.variable} ${poppins.variable} antialiased`}>{children}</body>

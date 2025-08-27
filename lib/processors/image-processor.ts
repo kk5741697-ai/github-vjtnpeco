@@ -10,6 +10,8 @@ export interface ImageProcessingOptions {
   watermarkText?: string
   watermarkOpacity?: number
   rotation?: number
+  flipDirection?: "horizontal" | "vertical" | "both"
+  sensitivity?: number
   cropArea?: { x: number; y: number; width: number; height: number }
   compressionLevel?: "low" | "medium" | "high" | "maximum"
   removeBackground?: boolean
@@ -55,6 +57,25 @@ export class ImageProcessor {
           
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           ctx.restore()
+        } else if (options.rotation) {
+          // Handle rotation
+          const angle = options.rotation * (Math.PI / 180)
+          const cos = Math.abs(Math.cos(angle))
+          const sin = Math.abs(Math.sin(angle))
+          const newWidth = originalWidth * cos + originalHeight * sin
+          const newHeight = originalWidth * sin + originalHeight * cos
+
+          canvas.width = newWidth
+          canvas.height = newHeight
+
+          if (options.backgroundColor) {
+            ctx.fillStyle = options.backgroundColor
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+          }
+
+          ctx.translate(newWidth / 2, newHeight / 2)
+          ctx.rotate(angle)
+          ctx.drawImage(img, -originalWidth / 2, -originalHeight / 2)
         } else {
           // Regular processing
           canvas.width = targetWidth || originalWidth

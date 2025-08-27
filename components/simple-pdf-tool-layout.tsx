@@ -105,7 +105,7 @@ export function SimplePDFToolLayout({
       try {
         // Generate realistic PDF thumbnails
         const pageCount = Math.floor(Math.random() * 20) + 1
-        const pages = await this.generatePDFThumbnails(file, pageCount)
+        const pages = await generatePDFThumbnails(file, pageCount)
         
         const pdfFile: PDFFile = {
           id: `${file.name}-${Date.now()}-${i}`,

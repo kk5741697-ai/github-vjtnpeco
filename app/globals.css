@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Removed @custom-variant dark and kept only .dark class for proper Tailwind CSS v4 compatibility */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -37,7 +38,6 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Removed @custom-variant dark and kept only .dark class for proper Tailwind CSS v4 compatibility */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
