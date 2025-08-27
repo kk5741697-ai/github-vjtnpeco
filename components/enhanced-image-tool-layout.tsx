@@ -62,6 +62,7 @@ interface EnhancedImageToolLayoutProps {
   processFunction: (files: ImageFile[], options: any) => Promise<{ success: boolean; processedFiles?: ImageFile[]; error?: string }>
   options: ToolOption[]
   maxFiles?: number
+  singleFileOnly?: boolean
   allowBatchProcessing?: boolean
 }
 
@@ -73,6 +74,7 @@ export function EnhancedImageToolLayout({
   processFunction,
   options,
   maxFiles = 20,
+  singleFileOnly = false,
   allowBatchProcessing = true
 }: EnhancedImageToolLayoutProps) {
   const [files, setFiles] = useState<ImageFile[]>([])
@@ -99,8 +101,13 @@ export function EnhancedImageToolLayout({
   const handleFileUpload = async (uploadedFiles: FileList | null) => {
     if (!uploadedFiles) return
 
+    if (singleFileOnly && files.length > 0) {
+      setFiles([])
+      setProcessedFiles([])
+    }
+
     const newFiles: ImageFile[] = []
-    const maxFilesToProcess = Math.min(uploadedFiles.length, maxFiles)
+    const maxFilesToProcess = singleFileOnly ? 1 : Math.min(uploadedFiles.length, maxFiles)
     
     for (let i = 0; i < maxFilesToProcess; i++) {
       const file = uploadedFiles[i]
@@ -130,7 +137,7 @@ export function EnhancedImageToolLayout({
       }
     }
 
-    setFiles(prev => [...prev, ...newFiles])
+    setFiles(prev => singleFileOnly ? newFiles : [...prev, ...newFiles])
     
     if (newFiles.length > 0 && !selectedFile) {
       setSelectedFile(newFiles[0].id)
@@ -368,14 +375,14 @@ export function EnhancedImageToolLayout({
         </div>
 
         {/* Canvas Content */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative">
           {files.length === 0 ? (
-            <div className="flex-1 flex flex-col">
+            <div className="h-full flex flex-col">
               <div className="p-4 flex-shrink-0">
                 <EnhancedAdBanner position="header" showLabel />
               </div>
               
-              <div className="flex-1 flex items-center justify-center p-4 sm:p-6 min-h-0">
+              <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
                 <div 
                   className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors p-8 sm:p-12"
                   onDrop={handleDrop}
@@ -396,19 +403,20 @@ export function EnhancedImageToolLayout({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col">
+            <div className="h-full flex flex-col">
               <div className="p-4 border-b flex-shrink-0">
                 <EnhancedAdBanner position="inline" showLabel />
               </div>
 
-              {/* Image Preview Container with Proper Viewport Handling */}
+              {/* Image Preview Container */}
               <div 
                 ref={containerRef}
-                className="flex-1 overflow-auto bg-gray-100 relative min-h-0"
+                className="flex-1 overflow-auto bg-gray-100 relative"
+                style={{ height: "calc(100vh - 200px)" }}
               >
-                <div className="h-full flex items-center justify-center p-4">
+                <div className="min-h-full flex items-center justify-center p-4">
                   {currentFile && (
-                    <div className="relative max-w-full max-h-full">
+                    <div className="relative">
                       {/* Zoom Controls */}
                       <div className="absolute top-4 left-4 z-10 flex space-x-2 bg-white rounded-lg shadow-lg p-2">
                         <Button 
@@ -437,45 +445,25 @@ export function EnhancedImageToolLayout({
                         </Button>
                       </div>
 
-                      <div className="relative inline-block max-w-full max-h-full">
+                      <div 
+                        className="relative inline-block"
+                        style={{ 
+                          transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+                          transformOrigin: "center center",
+                          maxWidth: "calc(100vw - 400px)",
+                          maxHeight: "calc(100vh - 300px)"
+                        }}
+                      >
                         <img
                           src={currentFile.processedPreview || currentFile.preview}
                           alt={currentFile.name}
-                          className="max-w-full max-h-[calc(100vh-300px)] object-contain border border-gray-300 rounded-lg shadow-lg"
+                          className="max-w-full max-h-full object-contain border border-gray-300 rounded-lg shadow-lg"
                           style={{ 
-                            transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
-                            transformOrigin: "center center"
+                            maxWidth: "100%",
+                            maxHeight: "100%"
                           }}
                           draggable={false}
-                          onMouseDown={handleCropStart}
-                          onMouseMove={handleCropMove}
-                          onMouseUp={handleCropEnd}
-                          onMouseLeave={handleCropEnd}
                         />
-                        
-                        {/* Enhanced Crop Overlay */}
-                        {toolType === "crop" && cropSelection && (
-                          <div
-                            className="absolute border-2 border-blue-500 bg-blue-500/20 pointer-events-none"
-                            style={{
-                              left: `${cropSelection.x}%`,
-                              top: `${cropSelection.y}%`,
-                              width: `${cropSelection.width}%`,
-                              height: `${cropSelection.height}%`
-                            }}
-                          >
-                            {/* Crop Handles */}
-                            <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white cursor-nw-resize"></div>
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white cursor-ne-resize"></div>
-                            <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white cursor-sw-resize"></div>
-                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white cursor-se-resize"></div>
-                            
-                            {/* Crop Info */}
-                            <div className="absolute -top-8 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                              {Math.round(cropSelection.width)}% × {Math.round(cropSelection.height)}%
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -636,7 +624,7 @@ export function EnhancedImageToolLayout({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        multiple={allowBatchProcessing && maxFiles > 1}
+        multiple={!singleFileOnly && maxFiles > 1}
         onChange={(e) => handleFileUpload(e.target.files)}
         className="hidden"
       />

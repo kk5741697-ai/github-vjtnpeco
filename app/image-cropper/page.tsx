@@ -77,7 +77,7 @@ export default function ImageCropperPage() {
       toolType="crop"
       processFunction={cropImages}
       options={cropOptions}
-      maxFiles={1}
+      singleFileOnly={true}
       presets={cropPresets}
     />
   )

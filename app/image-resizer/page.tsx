@@ -1,6 +1,6 @@
 "use client"
 
-import { SimpleImageToolLayout } from "@/components/simple-image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Maximize } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -83,7 +83,7 @@ async function resizeImages(files: any[], options: any) {
 
 export default function ImageResizerPage() {
   return (
-    <SimpleImageToolLayout
+    <EnhancedImageToolLayout
       title="Resize IMAGE"
       description="Define your dimensions, by percent or pixel, and resize your JPG, PNG, SVG, and GIF images."
       icon={Maximize}

@@ -1,6 +1,6 @@
 "use client"
 
-import { SimpleImageToolLayout } from "@/components/simple-image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Archive } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -68,7 +68,7 @@ async function compressImages(files: any[], options: any) {
 
 export default function ImageCompressorPage() {
   return (
-    <SimpleImageToolLayout
+    <EnhancedImageToolLayout
       title="Compress IMAGE"
       description="Compress JPG, PNG, SVG, and GIFs while saving space and maintaining quality."
       icon={Archive}

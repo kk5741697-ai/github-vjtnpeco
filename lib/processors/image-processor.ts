@@ -305,10 +305,12 @@ export class ImageProcessor {
       const img = new Image()
       img.onload = () => {
         const { x, y, width, height } = cropArea
-        const cropX = (x / 100) * img.naturalWidth
-        const cropY = (y / 100) * img.naturalHeight
-        const cropWidth = (width / 100) * img.naturalWidth
-        const cropHeight = (height / 100) * img.naturalHeight
+        
+        // Ensure crop area is within bounds
+        const cropX = Math.max(0, Math.min((x / 100) * img.naturalWidth, img.naturalWidth))
+        const cropY = Math.max(0, Math.min((y / 100) * img.naturalHeight, img.naturalHeight))
+        const cropWidth = Math.max(1, Math.min((width / 100) * img.naturalWidth, img.naturalWidth - cropX))
+        const cropHeight = Math.max(1, Math.min((height / 100) * img.naturalHeight, img.naturalHeight - cropY))
 
         canvas.width = cropWidth
         canvas.height = cropHeight

@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Droplets } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -120,7 +120,7 @@ async function addWatermarkToImages(files: any[], options: any) {
 
 export default function ImageWatermarkPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Image Watermark"
       description="Add text watermarks to your images for copyright protection and branding. Customize opacity, position, size, and color."
       icon={Droplets}

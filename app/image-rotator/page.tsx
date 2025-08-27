@@ -1,7 +1,8 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { RotateCw } from "lucide-react"
+import { ImageProcessor } from "@/lib/processors/image-processor"
 
 const rotateOptions = [
   {
@@ -54,45 +55,53 @@ const rotateOptions = [
 ]
 
 async function rotateImages(files: any[], options: any) {
-  // Simulate image rotation process
-  return new Promise<{ success: boolean; processedFiles?: any[]; error?: string }>((resolve) => {
-    setTimeout(() => {
-      if (files.length === 0) {
-        resolve({
-          success: false,
-          error: "No files to process",
-        })
-        return
-      }
+  try {
+    const processedFiles = await Promise.all(
+      files.map(async (file) => {
+        const angle = options.customAngle !== 0 ? options.customAngle : Number.parseInt(options.rotation)
+        
+        const processedBlob = await ImageProcessor.processImage(
+          file.originalFile || file.file,
+          {
+            rotation: angle,
+            backgroundColor: options.backgroundColor,
+            outputFormat: options.outputFormat,
+            quality: options.quality
+          }
+        )
 
-      // Simulate successful rotation
-      const angle = options.customAngle !== 0 ? options.customAngle : Number.parseInt(options.rotation)
-      const processedFiles = files.map((file) => {
-        // For 90° and 270° rotations, swap width and height
-        const shouldSwapDimensions = Math.abs(angle) === 90 || Math.abs(angle) === 270
-        const newDimensions = shouldSwapDimensions
-          ? { width: file.dimensions.height, height: file.dimensions.width }
-          : file.dimensions
+        const processedUrl = URL.createObjectURL(processedBlob)
+        
+        const outputFormat = options.outputFormat || "png"
+        const baseName = file.name.split(".")[0]
+        const newName = `${baseName}_rotated.${outputFormat}`
 
         return {
           ...file,
           processed: true,
-          processedPreview: file.preview,
-          dimensions: newDimensions,
+          processedPreview: processedUrl,
+          name: newName,
+          processedSize: processedBlob.size,
+          blob: processedBlob
         }
       })
+    )
 
-      resolve({
-        success: true,
-        processedFiles,
-      })
-    }, 1500)
-  })
+    return {
+      success: true,
+      processedFiles,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to rotate images",
+    }
+  }
 }
 
 export default function ImageRotatorPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Image Rotator"
       description="Rotate images by 90°, 180°, 270°, or any custom angle. Perfect for fixing orientation and creating artistic effects."
       icon={RotateCw}

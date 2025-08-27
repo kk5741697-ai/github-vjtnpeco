@@ -1,6 +1,6 @@
 "use client"
 
-import { ImageToolLayout } from "@/components/image-tool-layout"
+import { EnhancedImageToolLayout } from "@/components/enhanced-image-tool-layout"
 import { Scissors } from "lucide-react"
 import { ImageProcessor } from "@/lib/processors/image-processor"
 
@@ -77,7 +77,7 @@ async function removeBackground(files: any[], options: any) {
 
 export default function BackgroundRemoverPage() {
   return (
-    <ImageToolLayout
+    <EnhancedImageToolLayout
       title="Background Remover"
       description="Remove backgrounds from images automatically using advanced edge detection. Perfect for product photos, portraits, and creating transparent images."
       icon={Scissors}
@@ -86,8 +86,6 @@ export default function BackgroundRemoverPage() {
       options={backgroundRemovalOptions}
       maxFiles={5}
       allowBatchProcessing={true}
-      supportedFormats={["image/jpeg", "image/png", "image/webp"]}
-      outputFormats={["png"]}
     />
   )
 }

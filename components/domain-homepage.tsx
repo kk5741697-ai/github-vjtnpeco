@@ -39,9 +39,35 @@ export function DomainHomepage({
   const [searchQuery, setSearchQuery] = useState("")
   const [activeCategory, setActiveCategory] = useState("All")
 
-  const filteredTools = tools.filter(tool => 
-    tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTools = tools.filter(tool => {
+    const matchesSearch = tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = activeCategory === "All" || 
+                           (activeCategory === "Optimize" && (tool.title.includes("Compress") || tool.title.includes("Resize"))) ||
+                           (activeCategory === "Create" && (tool.title.includes("generator") || tool.title.includes("Meme"))) ||
+                           (activeCategory === "Edit" && (tool.title.includes("editor") || tool.title.includes("Crop") || tool.title.includes("Watermark"))) ||
+                           (activeCategory === "Convert" && tool.title.includes("Convert")) ||
+                           (activeCategory === "Security" && tool.title.includes("Remove"))
+    
+    return matchesSearch && matchesCategory
+  })
+
+  // Update filtered tools based on domain
+  const domainFilteredTools = filteredTools.filter(tool => {
+    if (domain === "pixorapdf.com") {
+      return tool.title.toLowerCase().includes("pdf") || tool.href.includes("pdf")
+    }
+    if (domain === "pixoraimg.com") {
+      return tool.title.toLowerCase().includes("image") || tool.href.includes("image") || tool.href.includes("background")
+    }
+    if (domain === "pixoraqrcode.com") {
+      return tool.title.toLowerCase().includes("qr") || tool.href.includes("qr")
+    }
+    return true
+  })
+
+  const finalFilteredTools = domainFilteredTools.length > 0 ? domainFilteredTools : filteredTools
+
   )
 
   return (
@@ -69,7 +95,7 @@ export function DomainHomepage({
             </div>
             {searchQuery && (
               <p className="text-sm text-gray-500 mt-2">
-                Found {filteredTools.length} tools matching "{searchQuery}"
+                Found {finalFilteredTools.length} tools matching "{searchQuery}"
               </p>
             )}
           </div>
@@ -97,7 +123,7 @@ export function DomainHomepage({
 
           {/* Tools Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {filteredTools.map((tool) => {
+            {finalFilteredTools.map((tool) => {
               const Icon = tool.icon
               return (
                 <Link
@@ -120,7 +146,7 @@ export function DomainHomepage({
             })}
           </div>
 
-          {filteredTools.length === 0 && searchQuery && (
+          {finalFilteredTools.length === 0 && searchQuery && (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">No tools found matching your search.</p>
               <Button 
