@@ -1,12 +1,34 @@
 "use client"
 
-import { SimplePDFToolLayout } from "@/components/simple-pdf-tool-layout"
+import { PDFToolLayout } from "@/components/pdf-tool-layout"
 import { Scissors } from "lucide-react"
-import { PDFProcessor } from "@/lib/processors/pdf-processor"
+import { PDFProcessor } from "@/lib/pdf-processor"
 
 import JSZip from "jszip"
 
-const splitOptions: any[] = []
+const splitOptions = [
+  {
+    key: "splitMode",
+    label: "Split Mode",
+    type: "select" as const,
+    defaultValue: "pages",
+    selectOptions: [
+      { value: "pages", label: "Extract Selected Pages" },
+      { value: "range", label: "Split by Page Range" },
+      { value: "size", label: "Split into Equal Parts" },
+    ],
+  },
+  {
+    key: "equalParts",
+    label: "Number of Parts",
+    type: "slider" as const,
+    defaultValue: 2,
+    min: 2,
+    max: 10,
+    step: 1,
+    condition: (options) => options.splitMode === "size",
+  },
+]
 async function splitPDF(files: any[], options: any) {
   try {
     if (files.length !== 1) {
@@ -72,7 +94,7 @@ async function splitPDF(files: any[], options: any) {
 
 export default function PDFSplitterPage() {
   return (
-    <SimplePDFToolLayout
+    <PDFToolLayout
       title="Split PDF"
       description="Split large PDF files into smaller documents by page ranges, file size, bookmarks, or equal parts. Extract specific pages or sections easily."
       icon={Scissors}

@@ -1,6 +1,6 @@
 "use client"
 
-import { SimplePDFToolLayout } from "@/components/simple-pdf-tool-layout"
+import { PDFToolLayout } from "@/components/pdf-tool-layout"
 import { Archive } from "lucide-react"
 import { PDFProcessor } from "@/lib/pdf-processor"
 import JSZip from "jszip"
@@ -11,7 +11,7 @@ const compressOptions = [
     label: "Compression Level",
     type: "select" as const,
     defaultValue: "medium",
-    options: [
+    selectOptions: [
       { value: "low", label: "Low Compression (High Quality)" },
       { value: "medium", label: "Medium Compression (Balanced)" },
       { value: "high", label: "High Compression (Small Size)" },
@@ -75,7 +75,7 @@ async function compressPDF(files: any[], options: any) {
 
 export default function PDFCompressorPage() {
   return (
-    <SimplePDFToolLayout
+    <PDFToolLayout
       title="PDF Compressor"
       description="Reduce PDF file size while maintaining quality. Optimize images, compress fonts, and remove unnecessary metadata to create smaller files."
       icon={Archive}

@@ -21,7 +21,9 @@ import {
   ArrowLeft,
   Undo,
   Redo,
-  RefreshCw
+  RefreshCw,
+  GripVertical,
+  Plus
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
@@ -86,6 +88,7 @@ export function PDFToolLayout({
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [history, setHistory] = useState<Array<{ files: PDFFile[]; options: any }>>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [viewMode, setViewMode] = useState<"pages" | "files">("pages")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -117,9 +120,9 @@ export function PDFToolLayout({
       }
 
       try {
-        // Generate realistic PDF thumbnails
+        // Generate realistic PDF thumbnails with actual document appearance
         const pageCount = Math.floor(Math.random() * 20) + 1
-        const pages = await generatePDFThumbnails(file, pageCount)
+        const pages = await generateRealisticPDFThumbnails(file, pageCount)
         
         const pdfFile: PDFFile = {
           id: `${file.name}-${Date.now()}-${i}`,
@@ -145,7 +148,7 @@ export function PDFToolLayout({
     saveToHistory()
   }
 
-  const generatePDFThumbnails = async (file: File, pageCount: number) => {
+  const generateRealisticPDFThumbnails = async (file: File, pageCount: number) => {
     const pages = []
     
     for (let i = 0; i < pageCount; i++) {
@@ -154,48 +157,83 @@ export function PDFToolLayout({
       canvas.width = 200
       canvas.height = 280
 
-      // Create realistic PDF page thumbnail
+      // Create realistic document appearance
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       
+      // Document border
       ctx.strokeStyle = "#e2e8f0"
       ctx.lineWidth = 1
       ctx.strokeRect(0, 0, canvas.width, canvas.height)
       
-      // Document header
-      ctx.fillStyle = "#1f2937"
-      ctx.font = "bold 12px system-ui"
-      ctx.textAlign = "left"
-      ctx.fillText("Document Title", 15, 25)
+      // Header area
+      ctx.fillStyle = "#f8fafc"
+      ctx.fillRect(10, 10, canvas.width - 20, 30)
       
-      // Content lines
-      ctx.fillStyle = "#374151"
-      ctx.font = "10px system-ui"
-      const lines = [
-        "Lorem ipsum dolor sit amet, consectetur",
-        "adipiscing elit. Sed do eiusmod tempor",
-        "incididunt ut labore et dolore magna",
-        "aliqua. Ut enim ad minim veniam,",
-        "quis nostrud exercitation ullamco",
-        "laboris nisi ut aliquip ex ea commodo"
+      // Document title
+      ctx.fillStyle = "#1e293b"
+      ctx.font = "bold 11px system-ui"
+      ctx.textAlign = "left"
+      ctx.fillText("Document Title", 15, 28)
+      
+      // Content paragraphs with realistic text layout
+      ctx.fillStyle = "#475569"
+      ctx.font = "9px system-ui"
+      
+      // Simulate paragraphs
+      const paragraphs = [
+        { lines: 4, startY: 50 },
+        { lines: 6, startY: 100 },
+        { lines: 3, startY: 160 },
+        { lines: 5, startY: 200 }
       ]
       
-      lines.forEach((line, lineIndex) => {
-        if (lineIndex < 6) {
-          ctx.fillText(line.substring(0, 28), 15, 45 + lineIndex * 12)
+      paragraphs.forEach((para, paraIndex) => {
+        for (let line = 0; line < para.lines; line++) {
+          const lineY = para.startY + line * 10
+          if (lineY > canvas.height - 40) break
+          
+          // Vary line lengths for realistic appearance
+          const lineLength = Math.random() * 0.4 + 0.6 // 60-100% width
+          const lineWidth = (canvas.width - 30) * lineLength
+          
+          // Draw text line as rectangle
+          ctx.fillStyle = line === para.lines - 1 ? "#94a3b8" : "#64748b"
+          ctx.fillRect(15, lineY, lineWidth, 1.5)
         }
       })
       
-      // Page elements
-      ctx.fillStyle = "#e5e7eb"
-      ctx.fillRect(15, 150, canvas.width - 30, 1)
-      ctx.fillRect(15, 170, canvas.width - 50, 1)
+      // Add some visual elements (tables, images, etc.)
+      if (i % 3 === 0) {
+        // Table representation
+        ctx.strokeStyle = "#cbd5e1"
+        ctx.lineWidth = 0.5
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 3; col++) {
+            ctx.strokeRect(15 + col * 50, 120 + row * 15, 50, 15)
+          }
+        }
+      }
+      
+      if (i % 4 === 1) {
+        // Image placeholder
+        ctx.fillStyle = "#e2e8f0"
+        ctx.fillRect(15, 80, 80, 60)
+        ctx.fillStyle = "#94a3b8"
+        ctx.font = "8px system-ui"
+        ctx.textAlign = "center"
+        ctx.fillText("Image", 55, 115)
+      }
+      
+      // Footer
+      ctx.fillStyle = "#e2e8f0"
+      ctx.fillRect(15, canvas.height - 25, canvas.width - 30, 1)
       
       // Page number
-      ctx.fillStyle = "#9ca3af"
+      ctx.fillStyle = "#94a3b8"
       ctx.font = "8px system-ui"
       ctx.textAlign = "center"
-      ctx.fillText(`Page ${i + 1} of ${pageCount}`, canvas.width / 2, canvas.height - 15)
+      ctx.fillText(`${i + 1}`, canvas.width / 2, canvas.height - 10)
 
       pages.push({
         pageNumber: i + 1,
@@ -243,24 +281,6 @@ export function PDFToolLayout({
     setHistoryIndex(prev => Math.min(prev + 1, 9))
   }
 
-  const undo = () => {
-    if (historyIndex > 0) {
-      const prevState = history[historyIndex - 1]
-      setFiles(prevState.files)
-      setToolOptions(prevState.options)
-      setHistoryIndex(prev => prev - 1)
-    }
-  }
-
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1]
-      setFiles(nextState.files)
-      setToolOptions(nextState.options)
-      setHistoryIndex(prev => prev + 1)
-    }
-  }
-
   const resetTool = () => {
     setFiles([])
     setDownloadUrl(null)
@@ -302,34 +322,36 @@ export function PDFToolLayout({
     }))
   }
 
-  const selectAllPages = (fileId: string) => {
-    setFiles(prev => prev.map(file => {
-      if (file.id === fileId) {
+  const selectAllPages = (fileId?: string) => {
+    if (fileId) {
+      setFiles(prev => prev.map(file => {
+        if (file.id === fileId) {
+          const updatedPages = file.pages.map(page => ({ ...page, selected: true }))
+          updatedPages.forEach(page => {
+            setSelectedPages(prev => new Set(prev).add(`${fileId}-${page.pageNumber}`))
+          })
+          return { ...file, pages: updatedPages }
+        }
+        return file
+      }))
+    } else {
+      // Select all pages from all files
+      setFiles(prev => prev.map(file => {
         const updatedPages = file.pages.map(page => ({ ...page, selected: true }))
         updatedPages.forEach(page => {
-          setSelectedPages(prev => new Set(prev).add(`${fileId}-${page.pageNumber}`))
+          setSelectedPages(prev => new Set(prev).add(`${file.id}-${page.pageNumber}`))
         })
         return { ...file, pages: updatedPages }
-      }
-      return file
-    }))
+      }))
+    }
   }
 
-  const deselectAllPages = (fileId: string) => {
-    setFiles(prev => prev.map(file => {
-      if (file.id === fileId) {
-        const updatedPages = file.pages.map(page => ({ ...page, selected: false }))
-        updatedPages.forEach(page => {
-          setSelectedPages(prev => {
-            const newSet = new Set(prev)
-            newSet.delete(`${fileId}-${page.pageNumber}`)
-            return newSet
-          })
-        })
-        return { ...file, pages: updatedPages }
-      }
-      return file
-    }))
+  const deselectAllPages = () => {
+    setFiles(prev => prev.map(file => ({
+      ...file,
+      pages: file.pages.map(page => ({ ...page, selected: false }))
+    })))
+    setSelectedPages(new Set())
   }
 
   const handleProcess = async () => {
@@ -411,11 +433,11 @@ export function PDFToolLayout({
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
-      {/* Left Canvas - PDF Preview */}
+      {/* Left Canvas - Enhanced PDF Preview */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+        <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-3 min-w-0">
             <Link href="/">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4" />
@@ -423,7 +445,7 @@ export function PDFToolLayout({
             </Link>
             <div className="flex items-center space-x-2 min-w-0">
               <Icon className="h-5 w-5 text-red-600 flex-shrink-0" />
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">{title}</h1>
+              <h1 className="text-lg font-semibold text-gray-900 truncate">{title}</h1>
             </div>
             <Badge variant="secondary" className="hidden sm:inline-flex">{files.length} files</Badge>
             {files.length > 0 && (
@@ -432,30 +454,19 @@ export function PDFToolLayout({
               </Badge>
             )}
           </div>
+          
           <div className="flex items-center space-x-2 flex-shrink-0">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={undo}
-              disabled={historyIndex <= 0}
-              className="hidden sm:inline-flex"
-            >
-              <Undo className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={redo}
-              disabled={historyIndex >= history.length - 1}
-              className="hidden sm:inline-flex"
-            >
-              <Redo className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={resetTool}
-            >
+            {allowPageSelection && files.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => selectAllPages()}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={deselectAllPages}>
+                  Deselect All
+                </Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={resetTool}>
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Button 
@@ -463,30 +474,31 @@ export function PDFToolLayout({
               size="sm"
               onClick={() => fileInputRef.current?.click()}
             >
+              <Plus className="h-4 w-4 mr-1" />
               Add More
             </Button>
           </div>
         </div>
 
         {/* Canvas Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-hidden">
           {files.length === 0 ? (
             <div className="h-full flex flex-col">
               <div className="p-4 flex-shrink-0">
                 <EnhancedAdBanner position="header" showLabel />
               </div>
               
-              <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+              <div className="flex-1 flex items-center justify-center p-4">
                 <div 
-                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-gray-400 transition-colors p-8 sm:p-12"
+                  className="max-w-md w-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-red-400 hover:bg-red-50/30 transition-all duration-200 p-8"
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="h-12 sm:h-16 w-12 sm:w-16 mb-4 text-gray-400" />
-                  <h3 className="text-lg sm:text-xl font-medium mb-2">Drop PDF files here</h3>
+                  <Upload className="h-16 w-16 mb-4 text-gray-400" />
+                  <h3 className="text-xl font-medium mb-2">Drop PDF files here</h3>
                   <p className="text-gray-400 mb-4 text-center">or click to browse</p>
-                  <Button>
+                  <Button className="bg-red-600 hover:bg-red-700">
                     <Upload className="h-4 w-4 mr-2" />
                     Choose Files
                   </Button>
@@ -500,16 +512,25 @@ export function PDFToolLayout({
                 <EnhancedAdBanner position="inline" showLabel />
               </div>
 
-              <div className="flex-1 p-6 overflow-auto">
+              {/* Enhanced PDF Pages Display */}
+              <div 
+                className="flex-1 overflow-auto p-6"
+                style={{ 
+                  height: "calc(100vh - 200px)",
+                  maxHeight: "calc(100vh - 200px)"
+                }}
+              >
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     {files.map((file, fileIndex) => (
-                      <div key={file.id} className="bg-white rounded-lg shadow-sm border">
+                      <div key={file.id} className="bg-white rounded-xl shadow-sm border border-gray-200">
                         {/* File Header */}
-                        <div className="px-6 py-4 border-b bg-gray-50 rounded-t-lg">
+                        <div className="px-6 py-4 border-b bg-gray-50 rounded-t-xl">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
-                              <FileText className="h-5 w-5 text-red-600" />
+                              <div className="p-2 bg-red-100 rounded-lg">
+                                <FileText className="h-5 w-5 text-red-600" />
+                              </div>
                               <div>
                                 <h3 className="font-medium text-gray-900">{file.name}</h3>
                                 <p className="text-sm text-gray-500">
@@ -517,6 +538,8 @@ export function PDFToolLayout({
                                 </p>
                               </div>
                             </div>
+                            
+                            {/* File actions in top-right corner like iLovePDF */}
                             <div className="flex items-center space-x-2">
                               {allowPageSelection && (
                                 <>
@@ -524,13 +547,33 @@ export function PDFToolLayout({
                                     variant="outline" 
                                     size="sm"
                                     onClick={() => selectAllPages(file.id)}
+                                    className="h-8 text-xs"
                                   >
                                     Select All
                                   </Button>
                                   <Button 
                                     variant="outline" 
                                     size="sm"
-                                    onClick={() => deselectAllPages(file.id)}
+                                    onClick={() => {
+                                      setFiles(prev => prev.map(f => {
+                                        if (f.id === file.id) {
+                                          return {
+                                            ...f,
+                                            pages: f.pages.map(page => ({ ...page, selected: false }))
+                                          }
+                                        }
+                                        return f
+                                      }))
+                                      // Remove from selected pages
+                                      setSelectedPages(prev => {
+                                        const newSet = new Set(prev)
+                                        file.pages.forEach(page => {
+                                          newSet.delete(`${file.id}-${page.pageNumber}`)
+                                        })
+                                        return newSet
+                                      })
+                                    }}
+                                    className="h-8 text-xs"
                                   >
                                     Deselect All
                                   </Button>
@@ -540,6 +583,7 @@ export function PDFToolLayout({
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => removeFile(file.id)}
+                                className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -547,7 +591,7 @@ export function PDFToolLayout({
                           </div>
                         </div>
 
-                        {/* Pages Grid */}
+                        {/* Pages Grid - Enhanced like iLovePDF */}
                         <Droppable droppableId={`file-${fileIndex}`} direction="horizontal">
                           {(provided) => (
                             <div 
@@ -555,7 +599,7 @@ export function PDFToolLayout({
                               {...provided.droppableProps}
                               className="p-6"
                             >
-                              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                                 {file.pages.map((page, pageIndex) => (
                                   <Draggable 
                                     key={`${file.id}-${page.pageNumber}`}
@@ -567,19 +611,28 @@ export function PDFToolLayout({
                                       <div
                                         ref={provided.innerRef}
                                         {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        className={`relative group cursor-pointer transition-all duration-200 ${
-                                          snapshot.isDragging ? "scale-105 shadow-lg z-50" : ""
+                                        className={`relative group transition-all duration-200 ${
+                                          snapshot.isDragging ? "scale-105 shadow-xl z-50 rotate-2" : ""
                                         }`}
                                       >
                                         <div 
-                                          className={`relative border-2 rounded-lg overflow-hidden transition-all ${
+                                          className={`relative border-2 rounded-lg overflow-hidden transition-all cursor-pointer ${
                                             page.selected 
-                                              ? "border-red-500 bg-red-50 shadow-md" 
-                                              : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                                              ? "border-green-500 bg-green-50 shadow-lg scale-105" 
+                                              : "border-gray-200 hover:border-gray-300 hover:shadow-md"
                                           }`}
                                           onClick={() => allowPageSelection && togglePageSelection(file.id, page.pageNumber)}
                                         >
+                                          {/* Drag handle - only show when reordering is allowed */}
+                                          {allowPageReorder && (
+                                            <div 
+                                              {...provided.dragHandleProps}
+                                              className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded p-1 shadow-sm cursor-grab active:cursor-grabbing"
+                                            >
+                                              <GripVertical className="h-3 w-3 text-gray-400" />
+                                            </div>
+                                          )}
+
                                           {/* Page Thumbnail */}
                                           <div className="aspect-[3/4] bg-white relative overflow-hidden">
                                             <img 
@@ -591,20 +644,25 @@ export function PDFToolLayout({
 
                                           {/* Page Number */}
                                           <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-                                            <Badge variant="secondary" className="text-xs bg-white shadow-sm">
+                                            <Badge 
+                                              variant="secondary" 
+                                              className={`text-xs shadow-sm ${
+                                                page.selected ? "bg-green-500 text-white" : "bg-white"
+                                              }`}
+                                            >
                                               {page.pageNumber}
                                             </Badge>
                                           </div>
 
-                                          {/* Selection Indicator */}
+                                          {/* Selection Indicator - Green checkmark like iLovePDF */}
                                           {allowPageSelection && (
                                             <div className="absolute top-2 right-2">
-                                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                                                 page.selected 
-                                                  ? "bg-red-500 border-red-500 scale-110" 
-                                                  : "bg-white border-gray-300 hover:border-red-300"
+                                                  ? "bg-green-500 border-green-500 scale-110" 
+                                                  : "bg-white border-gray-300 hover:border-green-300"
                                               }`}>
-                                                {page.selected && <CheckCircle className="h-3 w-3 text-white" />}
+                                                {page.selected && <CheckCircle className="h-4 w-4 text-white" />}
                                               </div>
                                             </div>
                                           )}
@@ -628,7 +686,7 @@ export function PDFToolLayout({
         </div>
       </div>
 
-      {/* Right Sidebar */}
+      {/* Right Sidebar - Enhanced like iLovePDF */}
       <div className="w-80 bg-white border-l shadow-lg flex flex-col flex-shrink-0">
         {/* Sidebar Header */}
         <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
@@ -641,6 +699,42 @@ export function PDFToolLayout({
 
         {/* Sidebar Content */}
         <div className="flex-1 overflow-auto p-6 space-y-6">
+          {/* Split Mode Selection - Enhanced like iLovePDF */}
+          {toolType === "split" && (
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Split Mode</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={toolOptions.splitMode === "range" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setToolOptions(prev => ({ ...prev, splitMode: "range" }))}
+                  className="flex flex-col items-center p-3 h-auto"
+                >
+                  <div className="text-lg mb-1">📄</div>
+                  <span className="text-xs">Range</span>
+                </Button>
+                <Button
+                  variant={toolOptions.splitMode === "pages" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setToolOptions(prev => ({ ...prev, splitMode: "pages" }))}
+                  className="flex flex-col items-center p-3 h-auto"
+                >
+                  <div className="text-lg mb-1">📑</div>
+                  <span className="text-xs">Pages</span>
+                </Button>
+                <Button
+                  variant={toolOptions.splitMode === "size" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setToolOptions(prev => ({ ...prev, splitMode: "size" }))}
+                  className="flex flex-col items-center p-3 h-auto"
+                >
+                  <div className="text-lg mb-1">⚖️</div>
+                  <span className="text-xs">Size</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Options */}
           {options.filter(option => !option.condition || option.condition(toolOptions)).map((option) => (
             <div key={option.key} className="space-y-2">
@@ -654,7 +748,7 @@ export function PDFToolLayout({
                     saveToHistory()
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -676,6 +770,7 @@ export function PDFToolLayout({
                     min={option.min}
                     max={option.max}
                     step={option.step}
+                    className="w-full"
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>{option.min}</span>
@@ -692,6 +787,7 @@ export function PDFToolLayout({
                     setToolOptions(prev => ({ ...prev, [option.key]: e.target.value }))
                   }}
                   onBlur={saveToHistory}
+                  className="h-9"
                 />
               )}
 
@@ -712,10 +808,16 @@ export function PDFToolLayout({
 
           {/* Selection Info for Split Tool */}
           {toolType === "split" && allowPageSelection && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <CheckCircle className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">Selection Summary</span>
+              </div>
               <p className="text-sm text-blue-800">
-                Selected pages will be extracted into separate PDF files. 
-                <span className="font-medium"> {selectedPages.size} PDF{selectedPages.size !== 1 ? 's' : ''}</span> will be created.
+                <span className="font-medium">{selectedPages.size} pages</span> selected from {files.length} file{files.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                {selectedPages.size} separate PDF{selectedPages.size !== 1 ? 's' : ''} will be created
               </p>
             </div>
           )}
@@ -780,7 +882,7 @@ export function PDFToolLayout({
               {allowPageSelection && (
                 <div className="flex justify-between">
                   <span>Selected pages:</span>
-                  <span className="text-red-600 font-medium">{selectedPages.size}</span>
+                  <span className="text-green-600 font-medium">{selectedPages.size}</span>
                 </div>
               )}
             </div>

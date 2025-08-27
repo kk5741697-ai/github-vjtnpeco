@@ -215,3 +215,97 @@
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
+/* Enhanced tool layouts */
+.tool-canvas {
+  height: calc(100vh - 180px);
+  max-height: calc(100vh - 180px);
+}
+
+.tool-preview {
+  max-width: calc(100vw - 400px);
+  max-height: calc(80vh - 100px);
+}
+
+@media (max-width: 1024px) {
+  .tool-preview {
+    max-width: calc(100vw - 320px);
+    max-height: calc(70vh - 100px);
+  }
+}
+
+@media (max-width: 768px) {
+  .tool-canvas {
+    height: calc(100vh - 140px);
+  }
+  
+  .tool-preview {
+    max-width: calc(100vw - 40px);
+    max-height: calc(60vh - 80px);
+  }
+}
+
+/* Crop overlay enhancements */
+.crop-selection {
+  @apply border-2 border-blue-500 bg-transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.crop-handle {
+  @apply absolute w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow-sm;
+  transform: translate(-50%, -50%);
+}
+
+.crop-handle:hover {
+  @apply scale-125 bg-blue-600;
+}
+
+/* PDF page selection */
+.pdf-page-selected {
+  @apply border-green-500 bg-green-50 shadow-lg scale-105;
+}
+
+.pdf-page-hover {
+  @apply border-gray-300 shadow-md;
+}
+
+/* Smooth transitions for all interactive elements */
+.tool-transition {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+/* Enhanced file item styling */
+.file-item {
+  @apply relative group cursor-pointer rounded-lg border-2 transition-all duration-200;
+}
+
+.file-item:hover {
+  @apply border-gray-300 shadow-md transform scale-102;
+}
+
+.file-item.selected {
+  @apply border-blue-500 bg-blue-50 shadow-lg;
+}
+
+/* File action buttons in top-right corner */
+.file-actions {
+  @apply absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .mobile-hide {
+    @apply hidden;
+  }
+  
+  .mobile-full {
+    @apply w-full;
+  }
+  
+  .mobile-stack {
+    @apply flex-col space-y-2 space-x-0;
+  }
+  
+  .tool-sidebar {
+    @apply w-full max-w-none;
+  }
+}
